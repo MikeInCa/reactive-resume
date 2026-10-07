@@ -1,6 +1,15 @@
+import type { ResumeData } from "@reactive-resume/schema/resume/data";
 import { describe, expect, it } from "vitest";
+import { experienceItemSchema, skillItemSchema } from "@reactive-resume/schema/resume/data";
 import { defaultResumeData } from "@reactive-resume/schema/resume/default";
-import { contentPathProblem, normalizePatchPaths } from "./patch-proposals";
+import {
+	contentPathProblem,
+	describeChanges,
+	normalizePatchPaths,
+	resolvePatchProposal,
+	targetOf,
+	withPreconditions,
+} from "./patch-proposals";
 
 describe("normalizePatchPaths", () => {
 	it("strips a /data prefix and expands a section shortcut, on path and from", () => {
@@ -50,5 +59,171 @@ describe("contentPathProblem", () => {
 		expect(contentPathProblem("/sections/awards/items/0/date")).toMatch(/dates/);
 		expect(contentPathProblem("")).toMatch(/whole/i);
 		expect(contentPathProblem("/sections")).toMatch(/whole/i);
+	});
+});
+
+function sample(): ResumeData {
+	const d = structuredClone(defaultResumeData);
+	d.basics.headline = "Junior Designer";
+	d.sections.experience.items = [
+		experienceItemSchema.parse({
+			id: "kettle",
+			hidden: false,
+			company: "Studio Kettle",
+			position: "Junior Designer",
+			location: "Lisbon",
+			period: "",
+			dates: { start: "2016-01", end: "2019-06", present: false },
+			description: "<p>Did things.</p>",
+			website: { url: "", label: "" },
+			roles: [],
+		}),
+	];
+	d.sections.skills.items = [
+		skillItemSchema.parse({
+			id: "s1",
+			hidden: false,
+			name: "Figma",
+			proficiency: "",
+			level: 3,
+			keywords: [],
+			icon: "",
+			iconColor: "",
+		}),
+		skillItemSchema.parse({
+			id: "s2",
+			hidden: false,
+			name: "Sketch",
+			proficiency: "",
+			level: 2,
+			keywords: [],
+			icon: "",
+			iconColor: "",
+		}),
+	];
+	return d;
+}
+const labels = {
+	sectionTitle: (id: string) => id.charAt(0).toUpperCase() + id.slice(1),
+	entryTitle: (e: Record<string, unknown>) => String(e.company ?? e.name ?? ""),
+};
+
+describe("withPreconditions", () => {
+	it("tests the current value before a replace or remove, the source before a move, and the neighbour before an indexed add", () => {
+		const d = sample();
+		const ops = withPreconditions(d, [
+			{ op: "replace", path: "/basics/headline", value: "Product Designer" },
+			{ op: "remove", path: "/sections/skills/items/1" },
+			{ op: "move", from: "/sections/skills/items/1", path: "/sections/skills/items/0" },
+			{ op: "add", path: "/sections/skills/items/0", value: { id: "s3", name: "Terraform" } },
+			{ op: "add", path: "/sections/skills/items/-", value: { id: "s4", name: "Go" } },
+		]);
+		expect(ops.filter((op) => op.op === "test").map((op) => op.path)).toEqual([
+			"/basics/headline",
+			"/sections/skills/items/1",
+			"/sections/skills/items/0",
+		]);
+		expect(ops[0]).toEqual({ op: "test", path: "/basics/headline", value: "Junior Designer" });
+		expect(ops.at(-1)).toEqual({ op: "add", path: "/sections/skills/items/-", value: { id: "s4", name: "Go" } });
+	});
+});
+
+describe("describeChanges and targetOf", () => {
+	it("labels a field, an added entry, a removed entry, a move and a dates change", () => {
+		const before = sample();
+		const after = structuredClone(before);
+		after.basics.headline = "Product Designer";
+		const entry = after.sections.experience.items[0];
+		if (!entry) throw new Error("fixture");
+		entry.position = "Product Designer";
+		entry.dates = { start: "2016-01", end: null, present: true };
+		const [figma, sketch] = after.sections.skills.items;
+		if (!figma || !sketch) throw new Error("fixture");
+		after.sections.skills.items = [sketch, { ...figma, id: "s3", name: "Terraform" }];
+		const rows = describeChanges(
+			before,
+			after,
+			[
+				{ op: "replace", path: "/basics/headline", value: "Product Designer" },
+				{ op: "replace", path: "/sections/experience/items/0/position", value: "Product Designer" },
+				{ op: "replace", path: "/sections/experience/items/0/dates", value: entry.dates },
+				{ op: "add", path: "/sections/skills/items/-", value: { id: "s3", name: "Terraform" } },
+				{ op: "remove", path: "/sections/skills/items/0" },
+				{ op: "move", from: "/sections/skills/items/1", path: "/sections/skills/items/0" },
+			],
+			labels,
+		);
+		expect(rows).toEqual([
+			{ path: "/basics/headline", label: "Basics · Headline", before: "Junior Designer", after: "Product Designer" },
+			{
+				path: "/sections/experience/items/0/position",
+				label: "Experience · Studio Kettle · Position",
+				before: "Junior Designer",
+				after: "Product Designer",
+			},
+			{
+				path: "/sections/experience/items/0/dates",
+				label: "Experience · Studio Kettle · Dates",
+				before: "2016-01 – 2019-06",
+				after: "2016-01 – Present",
+			},
+			{ path: "/sections/skills/items/-", label: "Skills", before: "", after: "Add entry “Terraform”" },
+			{ path: "/sections/skills/items/0", label: "Skills", before: "Remove entry “Figma”", after: "" },
+			{ path: "/sections/skills/items/0", label: "Skills", before: "", after: "Move “Sketch” to position 1" },
+		]);
+		expect(targetOf("/sections/experience/items/0/roles/1/description")).toMatchObject({
+			sectionId: "experience",
+			field: "description",
+		});
+		expect(targetOf("/sections/experience/items/0/position", sample())).toEqual({
+			sectionId: "experience",
+			itemId: "kettle",
+			field: "position",
+		});
+	});
+});
+
+describe("resolvePatchProposal", () => {
+	it("returns a pending patch proposal with preconditions, target and rows", () => {
+		const result = resolvePatchProposal(
+			sample(),
+			{
+				why: "Posting title.",
+				operations: [{ op: "replace", path: "/experience/items/0/position", value: "Product Designer" }],
+			},
+			labels,
+			"c1",
+		);
+		if (!("proposal" in result)) throw new Error(result.reason);
+		expect(result.proposal).toMatchObject({
+			id: "c1",
+			kind: "patch",
+			status: "pending",
+			source: "assistant",
+			why: "Posting title.",
+			target: { sectionId: "experience", itemId: "kettle", field: "position" },
+			location: "Experience · Studio Kettle · Position",
+			before: "Junior Designer",
+			after: "Product Designer",
+		});
+		expect(result.proposal.operations?.[0]).toEqual({
+			op: "test",
+			path: "/sections/experience/items/0/position",
+			value: "Junior Designer",
+		});
+	});
+
+	it("skips a forbidden path, an incomplete entry, an unresolvable path and a no-op, each with a reason", () => {
+		const d = sample();
+		const reason = (ops: Parameters<typeof resolvePatchProposal>[1]["operations"]) => {
+			const r = resolvePatchProposal(d, { why: "x", operations: ops }, labels, "c");
+			return "reason" in r ? r.reason : "";
+		};
+		expect(reason([{ op: "replace", path: "/metadata/template", value: "x" }])).toMatch(/design/i);
+		expect(reason([{ op: "add", path: "/sections/skills/items/-", value: { name: "Go" } }])).toMatch(/id|invalid/i);
+		expect(reason([{ op: "replace", path: "/sections/experience/items/7/position", value: "x" }])).toMatch(
+			/does not exist|unresolvable/i,
+		);
+		expect(reason([{ op: "replace", path: "/basics/headline", value: "Junior Designer" }])).toMatch(/doesn't change/i);
 	});
 });
