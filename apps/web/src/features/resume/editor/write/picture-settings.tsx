@@ -34,6 +34,7 @@ import { useClosingValue } from "@/hooks/use-closing-value";
 import { useConfirm } from "@/hooks/use-confirm";
 import { useSyncFormValues } from "@/hooks/use-sync-form-values";
 import { getReadableErrorMessage } from "@/libs/error-message";
+import { numberInputValue, readNumberInput } from "@/libs/number-input";
 import { orpc } from "@/libs/orpc/client";
 import { useAppForm } from "@/libs/tanstack-form";
 
@@ -188,17 +189,16 @@ function PictureGeometryFields({ form, onAutoSave }: PictureFieldProps) {
 								render={
 									<InputGroupInput
 										name={field.name}
-										value={field.state.value}
+										value={numberInputValue(field.state.value)}
 										type="number"
 										min={32}
 										max={512}
 										step={1}
 										onBlur={field.handleBlur}
 										onChange={(e) => {
-											const value = e.target.value;
-											if (value === "") field.handleChange("" as unknown as number);
-											else field.handleChange(Number(value));
-											onAutoSave();
+											const value = readNumberInput(e.target.value, { min: 32, max: 512 });
+											field.handleChange(value);
+											if (Number.isFinite(value)) onAutoSave();
 										}}
 									/>
 								}
@@ -225,17 +225,16 @@ function PictureGeometryFields({ form, onAutoSave }: PictureFieldProps) {
 									<InputGroupInput
 										disabled
 										name={field.name}
-										value={field.state.value}
+										value={numberInputValue(field.state.value)}
 										type="number"
 										min={0}
 										max={360}
 										step={5}
 										onBlur={field.handleBlur}
 										onChange={(e) => {
-											const value = e.target.value;
-											if (value === "") field.handleChange("" as unknown as number);
-											else field.handleChange(Number(value));
-											onAutoSave();
+											const value = readNumberInput(e.target.value, { min: 0, max: 360 });
+											field.handleChange(value);
+											if (Number.isFinite(value)) onAutoSave();
 										}}
 									/>
 								}
@@ -262,17 +261,16 @@ function PictureGeometryFields({ form, onAutoSave }: PictureFieldProps) {
 								render={
 									<Input
 										name={field.name}
-										value={field.state.value}
+										value={numberInputValue(field.state.value)}
 										type="number"
 										min={0.5}
 										max={2.5}
 										step={0.1}
 										onBlur={field.handleBlur}
 										onChange={(e) => {
-											const value = e.target.value;
-											if (value === "") field.handleChange("" as unknown as number);
-											else field.handleChange(Number(value));
-											onAutoSave();
+											const value = readNumberInput(e.target.value, { min: 0.5, max: 2.5 });
+											field.handleChange(value);
+											if (Number.isFinite(value)) onAutoSave();
 										}}
 									/>
 								}
@@ -339,16 +337,16 @@ function PictureGeometryFields({ form, onAutoSave }: PictureFieldProps) {
 									render={
 										<InputGroupInput
 											name={field.name}
-											value={field.state.value}
+											value={numberInputValue(field.state.value)}
 											type="number"
 											min={0}
 											max={100}
 											step={1}
 											onBlur={field.handleBlur}
 											onChange={(e) => {
-												const value = Number(e.target.value);
+												const value = readNumberInput(e.target.value, { min: 0, max: 100 });
 												field.handleChange(value);
-												onAutoSave();
+												if (Number.isFinite(value)) onAutoSave();
 											}}
 										/>
 									}
@@ -663,16 +661,15 @@ function ColorWidthFields(props: ColorWidthFieldsProps) {
 								render={
 									<InputGroupInput
 										name={field.name}
-										value={field.state.value}
+										value={numberInputValue(field.state.value)}
 										type="number"
 										min={0}
 										step={step}
 										onBlur={field.handleBlur}
 										onChange={(e) => {
-											const value = e.target.value;
-											if (value === "") field.handleChange("" as unknown as number);
-											else field.handleChange(Number(value));
-											onAutoSave();
+											const value = readNumberInput(e.target.value, { min: 0 });
+											field.handleChange(value);
+											if (Number.isFinite(value)) onAutoSave();
 										}}
 									/>
 								}

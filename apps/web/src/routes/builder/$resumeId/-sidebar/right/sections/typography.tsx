@@ -17,6 +17,7 @@ import { FontFamilyCombobox, FontWeightCombobox } from "@/components/typography/
 import { getNextWeights } from "@/components/typography/get-next-weights";
 import { useCurrentResume, useUpdateResumeData } from "@/features/resume/builder/draft";
 import { useSyncFormValues } from "@/hooks/use-sync-form-values";
+import { numberInputValue, readNumberInput } from "@/libs/number-input";
 import { useAppForm } from "@/libs/tanstack-form";
 
 export function TypographySectionBuilder() {
@@ -185,17 +186,16 @@ function TypographyGroupFields({ form, prefix, handleAutoSave }: TypographyGroup
 								render={
 									<InputGroupInput
 										name={field.name}
-										value={field.state.value}
+										value={numberInputValue(field.state.value)}
 										min={6}
 										max={24}
 										step={0.1}
 										type="number"
 										onBlur={field.handleBlur}
 										onChange={(e) => {
-											const value = e.target.value;
-											if (value === "") field.handleChange("" as unknown as number);
-											else field.handleChange(Number(value));
-											handleAutoSave();
+											const value = readNumberInput(e.target.value, { min: 6, max: 24 });
+											field.handleChange(value);
+											if (Number.isFinite(value)) handleAutoSave();
 										}}
 									/>
 								}
@@ -219,17 +219,16 @@ function TypographyGroupFields({ form, prefix, handleAutoSave }: TypographyGroup
 								render={
 									<InputGroupInput
 										name={field.name}
-										value={field.state.value}
+										value={numberInputValue(field.state.value)}
 										min={0.5}
 										max={4}
 										step={0.05}
 										type="number"
 										onBlur={field.handleBlur}
 										onChange={(e) => {
-											const value = e.target.value;
-											if (value === "") field.handleChange("" as unknown as number);
-											else field.handleChange(Number(value));
-											handleAutoSave();
+											const value = readNumberInput(e.target.value, { min: 0.5, max: 4 });
+											field.handleChange(value);
+											if (Number.isFinite(value)) handleAutoSave();
 										}}
 									/>
 								}

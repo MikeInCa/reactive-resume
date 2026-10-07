@@ -14,6 +14,7 @@ import { SectionBase } from "../../shared/section-base";
 import { LayoutPages } from "./pages";
 import { useCurrentResume, useUpdateResumeData } from "@/features/resume/builder/draft";
 import { useSyncFormValues } from "@/hooks/use-sync-form-values";
+import { numberInputValue, readNumberInput } from "@/libs/number-input";
 import { useAppForm } from "@/libs/tanstack-form";
 
 export function LayoutSectionBuilder() {
@@ -88,17 +89,16 @@ function LayoutSectionForm() {
 									<InputGroup className="w-auto shrink-0">
 										<InputGroupInput
 											name={field.name}
-											value={field.state.value}
+											value={numberInputValue(field.state.value)}
 											type="number"
 											min={10}
 											max={50}
 											step={0.1}
 											onBlur={field.handleBlur}
 											onChange={(e) => {
-												const value = e.target.value;
-												if (value === "") field.handleChange("" as unknown as number);
-												else field.handleChange(Number(value));
-												handleAutoSave();
+												const value = readNumberInput(e.target.value, { min: 10, max: 50 });
+												field.handleChange(value);
+												if (Number.isFinite(value)) handleAutoSave();
 											}}
 										/>
 										<InputGroupAddon align="inline-end">
