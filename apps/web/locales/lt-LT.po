@@ -180,7 +180,7 @@ msgstr "{0} uždarytas"
 msgid "{0} days left"
 msgstr "Liko {0} dienų"
 
-#. placeholder {0}: proposals.length
+#. placeholder {0}: applied.length
 #: src/features/assistant/document.ts
 #: src/features/resume/editor/proposals/proposals.ts
 msgid "{0} edits applied"
@@ -315,6 +315,10 @@ msgstr ""
 #: src/features/documents/new-document-dialog.tsx
 msgid "{base} (copy)"
 msgstr "{base} (kopija)"
+
+#: src/features/assistant/conversation.tsx
+msgid "{choice} — applied {count}; {stale} were out of date; {failed} could not be applied."
+msgstr ""
 
 #: src/features/assistant/conversation.tsx
 msgid "{choice} — applied {count}; {stale} were out of date."
@@ -5585,6 +5589,11 @@ msgstr "Informacija"
 #: src/routes/builder/$resumeId/-sidebar/right/sections/notes.tsx
 msgid "Notes"
 msgstr "Pastabos"
+
+#: src/features/assistant/document.ts
+#: src/features/resume/editor/proposals/proposals.ts
+msgid "Nothing could be applied: the text changed since."
+msgstr ""
 
 #: src/features/ats-checker/checker.tsx
 msgid "Nothing here should cost you a match."

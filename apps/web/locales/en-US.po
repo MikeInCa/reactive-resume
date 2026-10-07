@@ -175,7 +175,7 @@ msgstr "{0} closed"
 msgid "{0} days left"
 msgstr "{0} days left"
 
-#. placeholder {0}: proposals.length
+#. placeholder {0}: applied.length
 #: src/features/assistant/document.ts
 #: src/features/resume/editor/proposals/proposals.ts
 msgid "{0} edits applied"
@@ -310,6 +310,10 @@ msgstr "{applied, plural, one {# change} other {# changes}}"
 #: src/features/documents/new-document-dialog.tsx
 msgid "{base} (copy)"
 msgstr "{base} (copy)"
+
+#: src/features/assistant/conversation.tsx
+msgid "{choice} — applied {count}; {stale} were out of date; {failed} could not be applied."
+msgstr "{choice} — applied {count}; {stale} were out of date; {failed} could not be applied."
 
 #: src/features/assistant/conversation.tsx
 msgid "{choice} — applied {count}; {stale} were out of date."
@@ -5580,6 +5584,11 @@ msgstr "Note"
 #: src/routes/builder/$resumeId/-sidebar/right/sections/notes.tsx
 msgid "Notes"
 msgstr "Notes"
+
+#: src/features/assistant/document.ts
+#: src/features/resume/editor/proposals/proposals.ts
+msgid "Nothing could be applied: the text changed since."
+msgstr "Nothing could be applied: the text changed since."
 
 #: src/features/ats-checker/checker.tsx
 msgid "Nothing here should cost you a match."
