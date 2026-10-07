@@ -6,6 +6,7 @@ import {
 	applyProposal,
 	applyTo,
 	getProposalState,
+	isPatchProposal,
 	readTarget,
 	splitBlock,
 	splitBlocks,
@@ -60,7 +61,8 @@ export const pendingProposals = (data: ResumeData, proposals: readonly Proposal[
  * highlighted. For the preview only; it's never saved.
  */
 export function markProposals(data: ResumeData, proposals: readonly Proposal[]): ResumeData {
-	const pending = pendingProposals(data, proposals);
+	// Field changes (patch proposals) are reviewed on their cards; only passages are drawn on the page.
+	const pending = pendingProposals(data, proposals).filter((proposal) => !isPatchProposal(proposal));
 	if (pending.length === 0) return data;
 
 	return produce(data, (draft) => {

@@ -10,7 +10,7 @@ import {
 	replaceBlockText,
 } from "@reactive-resume/resume/proposals";
 import { defaultResumeData } from "@reactive-resume/schema/resume/default";
-import { markProposals } from "./proposals";
+import { markProposals, pendingProposals } from "./proposals";
 
 const OLD_BULLET = "<li><p>Responsible for various design tasks</p></li>";
 
@@ -104,5 +104,35 @@ describe("proposals", () => {
 		);
 		expect(getProposalState(next, { ...removal, status: "accepted" })).toBe("accepted");
 		expect(getProposalState(data, { ...removal, status: "accepted" })).toBe("pending");
+	});
+
+	it("never draws a patch proposal on the page, but still counts it as pending in its section", () => {
+		const data = makeData();
+		const patch = proposal({
+			id: "c1",
+			kind: "patch",
+			target: { sectionId: "experience", itemId: "kettle", field: "position" },
+			location: "Experience · Studio Kettle · Position",
+			before: "Junior Designer",
+			after: "Product Designer",
+			operations: [
+				{ op: "test", path: "/sections/experience/items/0/position", value: "Junior Designer" },
+				{ op: "replace", path: "/sections/experience/items/0/position", value: "Product Designer" },
+			],
+			changes: [
+				{
+					path: "/sections/experience/items/0/position",
+					label: "Experience · Studio Kettle · Position",
+					before: "Junior Designer",
+					after: "Product Designer",
+				},
+			],
+		});
+		expect(markProposals(data, [patch])).toBe(data);
+		expect(pendingProposals(data, [patch], "experience")).toHaveLength(1);
+		const next = produce(data, (draft) => {
+			expect(applyProposal(draft, patch)).toBe(true);
+		});
+		expect(next.sections.experience.items[0]?.position).toBe("Product Designer");
 	});
 });

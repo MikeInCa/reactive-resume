@@ -51,3 +51,40 @@ it("shows a rewrite as the old and new text", () => {
 	expect(container.querySelector("ins")?.textContent).toBe("Shipped print work for 12 retail clients");
 	expect(screen.queryByText("Remove this passage")).toBeNull();
 });
+
+it("shows a patch proposal as its change rows", () => {
+	const { container } = render(
+		<I18nProvider i18n={i18n}>
+			<ChangeSet
+				proposals={[
+					{
+						...base,
+						kind: "patch",
+						before: "Junior Designer",
+						after: "Product Designer",
+						location: "Experience · Studio Kettle · Position",
+						operations: [],
+						changes: [
+							{
+								path: "/sections/experience/items/0/position",
+								label: "Experience · Studio Kettle · Position",
+								before: "Junior Designer",
+								after: "Product Designer",
+							},
+							{ path: "/sections/skills/items/-", label: "Skills", before: "", after: "Add entry “Terraform”" },
+						],
+					},
+				]}
+				states={["pending"]}
+				locked={false}
+				onAccept={() => {}}
+				onReject={() => {}}
+			/>
+		</I18nProvider>,
+	);
+	expect(container.querySelectorAll("del")).toHaveLength(1);
+	expect(container.querySelector("del")?.textContent).toBe("Junior Designer");
+	expect(screen.getByText("Product Designer")).toBeTruthy();
+	expect(screen.getByText("Add entry “Terraform”")).toBeTruthy();
+	expect(screen.getByText("Skills")).toBeTruthy();
+});

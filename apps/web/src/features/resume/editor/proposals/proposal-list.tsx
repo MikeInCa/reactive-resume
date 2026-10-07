@@ -180,13 +180,27 @@ function ProposalItem(props: ProposalItemProps) {
 			</div>
 
 			<div className="grid gap-1.5 text-[13px] leading-[19px]">
-				<del className="text-ink-3">{passageText(proposal.before)}</del>
-				{proposal.after === "" ? (
-					<span className="text-xs font-medium text-warn-text">
-						<Trans>Remove this passage</Trans>
-					</span>
+				{proposal.kind === "patch" ? (
+					(proposal.changes ?? []).map((change) => (
+						<div key={change.path + change.label} className="grid gap-0.5">
+							<span className="font-mono text-[11px] text-ink-3 uppercase">{change.label}</span>
+							{change.before && <del className="text-ink-3">{change.before}</del>}
+							{change.after && (
+								<ins className="rounded-[3px] bg-accent-soft px-1 py-0.5 no-underline">{change.after}</ins>
+							)}
+						</div>
+					))
 				) : (
-					<ins className="rounded-[3px] bg-accent-soft px-1 py-0.5 no-underline">{passageText(proposal.after)}</ins>
+					<>
+						<del className="text-ink-3">{passageText(proposal.before)}</del>
+						{proposal.after === "" ? (
+							<span className="text-xs font-medium text-warn-text">
+								<Trans>Remove this passage</Trans>
+							</span>
+						) : (
+							<ins className="rounded-[3px] bg-accent-soft px-1 py-0.5 no-underline">{passageText(proposal.after)}</ins>
+						)}
+					</>
 				)}
 				{proposal.why && <span className="text-xs text-ink-2">{proposal.why}</span>}
 			</div>
