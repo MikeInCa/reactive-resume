@@ -140,15 +140,27 @@ export function withPreconditions(data: unknown, operations: JsonPatchOperation[
 	};
 	// An append can't be tested at its own path; test the list's last element (or that the list is empty) instead, so
 	// an applied append reads as accepted until it's undone.
-	const testAppend = (path: string) => {
-		const parent = path.slice(0, -"/-".length);
+	const testAppend = (parent: string) => {
 		const list = read(data, parent);
 		if (!Array.isArray(list)) return;
 		if (list.length === 0) test(parent);
 		else test(`${parent}/${list.length - 1}`);
 	};
+	// An add is an append when its path ends in "-" or in an index at or past the end of the list (models write
+	// /items/2 for a two-item list as often as /items/-).
+	const appendParent = (path: string): string | undefined => {
+		const slash = path.lastIndexOf("/");
+		if (slash < 0) return undefined;
+		const parent = path.slice(0, slash);
+		const last = path.slice(slash + 1);
+		if (last === "-") return parent;
+		if (!/^\d+$/.test(last)) return undefined;
+		const list = read(data, parent);
+		return Array.isArray(list) && Number(last) >= list.length ? parent : undefined;
+	};
 	for (const operation of operations) {
-		if (operation.op === "add" && operation.path.endsWith("/-")) testAppend(operation.path);
+		const parent = operation.op === "add" ? appendParent(operation.path) : undefined;
+		if (parent !== undefined) testAppend(parent);
 		else if (operation.op === "replace" || operation.op === "remove" || operation.op === "add") test(operation.path);
 		if (operation.op === "move" || operation.op === "copy") test(operation.from);
 	}

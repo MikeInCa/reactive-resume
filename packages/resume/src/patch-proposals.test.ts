@@ -252,4 +252,14 @@ describe("append preconditions", () => {
 		const emptyList = withPreconditions(d, [{ op: "add", path: "/sections/languages/items/-", value: { id: "l1" } }]);
 		expect(emptyList[0]).toEqual({ op: "test", path: "/sections/languages/items", value: [] });
 	});
+
+	it("treats an add at the index just past the end as an append (models write /items/2 instead of /items/-)", () => {
+		const d = sample();
+		const ops = withPreconditions(d, [
+			{ op: "add", path: "/sections/skills/items/2", value: { id: "s9", name: "Go" } },
+		]);
+		expect(ops[0]).toEqual({ op: "test", path: "/sections/skills/items/1", value: d.sections.skills.items[1] });
+		const beyond = withPreconditions(d, [{ op: "add", path: "/sections/skills/items/9", value: { id: "s9" } }]);
+		expect(beyond[0]).toEqual({ op: "test", path: "/sections/skills/items/1", value: d.sections.skills.items[1] });
+	});
 });
