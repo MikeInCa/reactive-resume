@@ -18,39 +18,50 @@ type StepContentPart = Record<string, unknown> & { type: string };
 type AgentStepLike = { content: ReadonlyArray<unknown> };
 
 type EditStatus = "pending" | "accepted" | "rejected";
-type ProposeEditsPart = UiMessagePart & {
+type ProposalPart = UiMessagePart & {
 	toolCallId?: string;
 	state?: string;
-	output?: { edits?: Array<{ id: string; status: EditStatus }> };
+	output?: {
+		edits?: Array<{ id: string; status: EditStatus }>;
+		proposals?: Array<{ id: string; status: EditStatus }>;
+	};
 };
 
-const proposeEditsParts = (message: UIMessage) =>
-	message.parts.filter(
-		(part): part is ProposeEditsPart =>
-			part.type === "tool-propose_edits" && (part as ProposeEditsPart).state === "output-available",
-	);
+// propose_edits (passages, under `edits`) and propose_changes (fields, under `proposals`) share one status model.
+const PROPOSAL_PART_TYPES = new Set(["tool-propose_edits", "tool-propose_changes"]);
+const isProposalPart = (part: UiMessagePart): part is ProposalPart =>
+	PROPOSAL_PART_TYPES.has(part.type) && (part as ProposalPart).state === "output-available";
+const proposalsIn = (part: ProposalPart) => part.output?.edits ?? part.output?.proposals ?? [];
 
-/** The edits a message proposed, with what the user did with each. */
-export const proposedEditsOf = (message: UIMessage) =>
-	proposeEditsParts(message).flatMap((part) => part.output?.edits ?? []);
+const proposeEditsParts = (message: UIMessage) => message.parts.filter(isProposalPart);
 
-/** The message with edit statuses set, in one propose_edits result (by tool call) or in all of them. */
+/** The edits and changes a message proposed, with what the user did with each. */
+export const proposedEditsOf = (message: UIMessage) => proposeEditsParts(message).flatMap(proposalsIn);
+
+/** The message with statuses set, in one propose_edits / propose_changes result (by tool call) or in all of them. */
 export function withEditStatuses(
 	message: UIMessage,
 	toolCallId: string | null,
 	statuses: ReadonlyMap<string, EditStatus>,
 ): UIMessage {
 	if (statuses.size === 0) return message;
+	const restatus = (list: Array<{ id: string; status: EditStatus }>) =>
+		list.map((item) => ({ ...item, status: statuses.get(item.id) ?? item.status }));
 	return {
 		...message,
 		parts: message.parts.map((part) => {
-			const edits = (part as ProposeEditsPart).output?.edits;
-			if (part.type !== "tool-propose_edits" || !edits) return part;
-			if (toolCallId && (part as ProposeEditsPart).toolCallId !== toolCallId) return part;
-			const output = (part as ProposeEditsPart).output;
+			if (!PROPOSAL_PART_TYPES.has(part.type)) return part;
+			const typed = part as ProposalPart;
+			if (toolCallId && typed.toolCallId !== toolCallId) return part;
+			const output = typed.output;
+			if (!output) return part;
 			return {
 				...part,
-				output: { ...output, edits: edits.map((edit) => ({ ...edit, status: statuses.get(edit.id) ?? edit.status })) },
+				output: {
+					...output,
+					...(output.edits ? { edits: restatus(output.edits) } : {}),
+					...(output.proposals ? { proposals: restatus(output.proposals) } : {}),
+				},
 			} as UiMessagePart;
 		}),
 	};

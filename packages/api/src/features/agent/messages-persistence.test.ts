@@ -1,5 +1,6 @@
 import type { UIMessage } from "ai";
 import { describe, expect, it } from "vitest";
+import { proposedEditsOf as proposedOf, withEditStatuses as withStatuses } from "./messages-persistence";
 import { applyStepToUiMessage, proposedEditsOf, upsertAssistantUiMessage } from "./messages-persistence";
 
 function emptyMessage(): UIMessage {
@@ -143,4 +144,25 @@ describe("proposed edit statuses", () => {
 		const written = database.updates[0] as { uiMessage: UIMessage };
 		expect(proposedEditsOf(written.uiMessage).map((edit) => edit.status)).toEqual(["accepted", "rejected"]);
 	});
+});
+
+it("records statuses on propose_changes proposals like propose_edits edits", () => {
+	const message = {
+		id: "m",
+		role: "assistant" as const,
+		parts: [
+			{
+				type: "tool-propose_changes",
+				toolCallId: "c",
+				state: "output-available",
+				input: {},
+				output: { title: "t", proposals: [{ id: "p1", status: "pending" }], skipped: [] },
+			},
+		],
+	} as unknown as UIMessage;
+	const next = withStatuses(message, "c", new Map([["p1", "accepted" as const]]));
+	expect((next.parts[0] as { output: { proposals: Array<{ status: string }> } }).output.proposals[0]?.status).toBe(
+		"accepted",
+	);
+	expect(proposedOf(next)).toEqual([{ id: "p1", status: "accepted" }]);
 });

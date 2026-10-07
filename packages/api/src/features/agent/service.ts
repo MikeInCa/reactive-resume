@@ -1,7 +1,12 @@
 import type { getModel } from "../ai/service";
 import type { WebAccessConnection } from "../web-access/contracts";
 import type { AssistantDocument } from "./document";
-import type { ProposeEditsInput, ProposeEditsOutput } from "@reactive-resume/ai/tools/agent-tool-contracts";
+import type {
+	ProposeChangesInput,
+	ProposeChangesOutput,
+	ProposeEditsInput,
+	ProposeEditsOutput,
+} from "@reactive-resume/ai/tools/agent-tool-contracts";
 import type { FilePart, ImagePart, ModelMessage, TextPart, UIMessage, UIMessageChunk } from "ai";
 import { ORPCError } from "@orpc/client";
 import { streamToEventIterator } from "@orpc/server";
@@ -18,6 +23,7 @@ import { and, asc, count, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { agentWebSources } from "@reactive-resume/ai/tools/agent-tool-contracts";
 import { db } from "@reactive-resume/db/client";
 import * as schema from "@reactive-resume/db/schema";
+import { createCustomSectionItemJsonSchemas } from "@reactive-resume/schema/resume/json-schema";
 import { generateId } from "@reactive-resume/utils/string";
 import { aiProvidersService } from "../ai-providers/service";
 import { assertAgentEnvironment } from "../ai/credentials";
@@ -29,7 +35,7 @@ import { webAccessService } from "../web-access/credentials";
 import { readPage, searchWeb } from "../web-access/service";
 import { isRunAlive, monitorRunCancellation, requestRunCancellation } from "./cancellation";
 import { pruneAgentModelContext } from "./context";
-import { documentOf, documentView, findPosting, loadDocument, resolveEdits } from "./document";
+import { documentOf, documentView, findPosting, loadDocument, resolveChanges, resolveEdits } from "./document";
 import { mergeClientToolResponses } from "./messages-merge";
 import {
 	applyStepToUiMessage,
@@ -723,6 +729,26 @@ async function proposeEdits(input: {
 	return output;
 }
 
+/** Places the model's field changes on the document and counts them toward the conversation's outcome. */
+async function proposeChanges(input: {
+	userId: string;
+	threadId: string;
+	document: AssistantDocument;
+	changes: ProposeChangesInput;
+}): Promise<ProposeChangesOutput> {
+	const loaded = await loadDocument(input.userId, input.document);
+	const output = resolveChanges(loaded, input.changes);
+	if (output.proposals.length > 0) {
+		await db
+			.update(schema.agentThread)
+			.set({
+				editsProposed: sql`${schema.agentThread.editsProposed} + ${output.proposals.length}`,
+			})
+			.where(and(eq(schema.agentThread.id, input.threadId), eq(schema.agentThread.userId, input.userId)));
+	}
+	return output;
+}
+
 function createAgent(input: {
 	userId: string;
 	threadId: string;
@@ -808,6 +834,23 @@ function createAgent(input: {
 					threadId: input.threadId,
 					document,
 					edits,
+				});
+			}),
+			proposeChanges: timedToolHandler("propose_changes", (changes: ProposeChangesInput) => {
+				if (!document) throw new Error("The document isn't shared with this message.");
+				return proposeChanges({ userId: input.userId, threadId: input.threadId, document, changes });
+			}),
+			readSchema: timedToolHandler("read_schema", (section: string) => {
+				const schemas = createCustomSectionItemJsonSchemas();
+				const entry = (schemas as Record<string, { schema: unknown }>)[section];
+				if (!entry)
+					return Promise.reject(
+						new Error(`Unknown section type "${section}". One of: ${Object.keys(schemas).join(", ")}.`),
+					);
+				return Promise.resolve({
+					section,
+					schema: entry.schema,
+					note: "Include every required field; id is a UUID; hidden is false; write dates as the dates object and leave period/date empty.",
 				});
 			}),
 		},

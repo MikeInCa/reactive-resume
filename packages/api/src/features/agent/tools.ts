@@ -1,4 +1,5 @@
 import type {
+	ProposeChangesInput,
 	ProposeEditsInput,
 	ReadPageOutput,
 	SearchWebOutput,
@@ -13,8 +14,10 @@ import z from "zod";
 import { assistantSystemPromptTemplate } from "@reactive-resume/ai/prompts";
 import {
 	askUserQuestionInputSchema,
+	proposeChangesInputSchema,
 	proposeEditsInputSchema,
 	readPageInputSchema,
+	readSchemaInputSchema,
 	readPageOutputSchema,
 	searchWebInputSchema,
 	searchWebOutputSchema,
@@ -42,6 +45,8 @@ type BuildAgentToolsInput = {
 		readDocument: () => Promise<unknown>;
 		readAttachment: (attachmentId: string) => Promise<unknown>;
 		proposeEdits: (input: ProposeEditsInput) => Promise<unknown>;
+		proposeChanges: (input: ProposeChangesInput) => Promise<unknown>;
+		readSchema: (section: string) => Promise<unknown>;
 		searchWeb: (query: string, signal: AbortSignal) => Promise<SearchWebOutput>;
 		readPage: (url: string, signal: AbortSignal) => Promise<ReadPageOutput>;
 	};
@@ -122,6 +127,18 @@ export function buildAgentTools(input: BuildAgentToolsInput): ToolSet {
 					inputSchema: proposeEditsInputSchema,
 					execute: input.handlers.proposeEdits,
 				}),
+				propose_changes: tool({
+					description:
+						"Propose changes to any content field of the open document, for the user to accept or reject: a title, company, date, location, link, skill, level, keyword, a new or removed entry, the order of entries, an entry's hidden flag. Each change is a small JSON Patch (RFC 6902) rooted at the resume data (paths from the read tool's `fields`). Write dates as `dates`, never period text. A new entry needs every field from read_schema plus a UUID id. Nothing changes until the user accepts. Rich text (summary, descriptions, letter body) goes through propose_edits instead.",
+					inputSchema: proposeChangesInputSchema,
+					execute: input.handlers.proposeChanges,
+				}),
+				read_schema: tool({
+					description:
+						"The JSON Schema of one section's entry type (required fields and their shapes), to build a complete new entry for propose_changes.",
+					inputSchema: readSchemaInputSchema,
+					execute: ({ section }) => input.handlers.readSchema(section),
+				}),
 			}
 		: {};
 
@@ -147,7 +164,7 @@ export function buildAgentTools(input: BuildAgentToolsInput): ToolSet {
 		...documentTools,
 		ask_user_question: tool({
 			description:
-				"Ask the user a short question when you need a fact, a preference or a choice before continuing, for example before writing about something the posting wants but the document doesn't mention. Offer 2 to 4 short answer choices when you can.",
+				"Ask the user a short question when you need a fact, a preference or a choice before continuing, for example before writing about something the posting wants but the document doesn't mention. Offer 2 to 4 short answer choices when you can. Set applyChanges: true, with the first choice meaning apply, only when the user has asked to go ahead with the proposed changes.",
 			inputSchema: askUserQuestionInputSchema,
 		}),
 		read_attachment: tool({

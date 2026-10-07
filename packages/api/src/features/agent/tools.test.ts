@@ -16,6 +16,8 @@ function build(externalSearch = false, signal = new AbortController().signal) {
 		readDocument: vi.fn(async () => ({ text: "Resume" })),
 		readAttachment: vi.fn(async () => ({})),
 		proposeEdits: vi.fn(async () => ({})),
+		proposeChanges: vi.fn(async () => ({ title: "t", proposals: [], skipped: [] })),
+		readSchema: vi.fn(async () => ({ required: ["id"] })),
 		searchWeb: vi.fn(async () => [{ url: "https://example.com/job", title: "Job" }]),
 		readPage: vi.fn(async () => page),
 	};
@@ -84,5 +86,20 @@ describe("assistant web tools", () => {
 				canReadPage: true,
 			}),
 		).toContain("Use `google_search`");
+	});
+});
+
+describe("field change tools", () => {
+	it("offers propose_changes and read_schema with a document, and routes them to the handlers", async () => {
+		const { tools, handlers } = build();
+		expect(Object.keys(tools)).toEqual(expect.arrayContaining(["propose_edits", "propose_changes", "read_schema"]));
+		await execute(tools, "propose_changes", {
+			title: "t",
+			changes: [{ why: "w", operations: [{ op: "replace", path: "/basics/name", value: "x" }] }],
+		});
+		expect(handlers.proposeChanges).toHaveBeenCalledOnce();
+		await execute(tools, "read_schema", { section: "skills" });
+		expect(handlers.readSchema).toHaveBeenCalledWith("skills");
+		expect(String((tools.ask_user_question as { description?: string }).description)).toMatch(/applyChanges/);
 	});
 });
