@@ -104,15 +104,15 @@ msgstr "{0, plural, one {# পরিচিতির একটি অবৈধ �
 msgid "{0, plural, one {# day} other {# days}}"
 msgstr "{0, plural, one {# দিন} other {# দিন}}"
 
-#. placeholder {0}: output.skipped.length
-#: src/features/assistant/conversation.tsx
-msgid "{0, plural, one {# edit couldn't be placed: its text changed. Ask again to redo it.} other {# edits couldn't be placed: their text changed. Ask again to redo them.}}"
-msgstr "{0, plural, one {# সম্পাদনা স্থাপন করা যায়নি: এর পাঠ্য পরিবর্তিত হয়েছে৷ আবার করতে বলুন।} other {# সম্পাদনা স্থাপন করা যায়নি: তাদের পাঠ্য পরিবর্তিত হয়েছে৷ সেগুলি আবার করতে বলুন।}}"
-
 #. placeholder {0}: report.ignored.length
 #: src/features/resume/editor/check/check-panel.tsx
 msgid "{0, plural, one {# issue is ignored.} other {# issues are ignored.}}"
 msgstr "{0, plural, one {# সমস্যাটি উপেক্ষা করা হয়েছে৷} other {# সমস্যাগুলি উপেক্ষা করা হয়৷}}"
+
+#. placeholder {0}: skipped.length
+#: src/features/assistant/conversation.tsx
+msgid "{0, plural, one {# proposal couldn't be placed. Ask again to redo it.} other {# proposals couldn't be placed. Ask again to redo them.}}"
+msgstr ""
 
 #. placeholder {0}: proposals.length
 #: src/features/assistant/conversation.tsx
@@ -308,9 +308,17 @@ msgstr "{0}-এর {accepted} প্রয়োগ করা হয়েছে
 msgid "{applicationCount, plural, one {# application} other {# applications}}"
 msgstr "{applicationCount, plural, one {# চাকরির আবেদন} other {# চাকরির আবেদন}}"
 
+#: src/features/assistant/conversation.tsx
+msgid "{applied, plural, one {# change} other {# changes}}"
+msgstr ""
+
 #: src/features/documents/new-document-dialog.tsx
 msgid "{base} (copy)"
 msgstr "{base} (কপি)"
+
+#: src/features/assistant/conversation.tsx
+msgid "{choice} — applied {count}; {stale} were out of date."
+msgstr ""
 
 #: src/features/resume/editor/write/section-row.tsx
 msgid "{column, plural, one {# column} other {# columns}}"

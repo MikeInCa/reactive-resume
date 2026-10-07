@@ -104,15 +104,15 @@ msgstr "{0, plural, one {ผู้ติดต่อ # มีอีเมลท�
 msgid "{0, plural, one {# day} other {# days}}"
 msgstr "{0, plural, one {# วัน} other {# วัน}}"
 
-#. placeholder {0}: output.skipped.length
-#: src/features/assistant/conversation.tsx
-msgid "{0, plural, one {# edit couldn't be placed: its text changed. Ask again to redo it.} other {# edits couldn't be placed: their text changed. Ask again to redo them.}}"
-msgstr "{0, plural, one {ไม่สามารถวางการแก้ไข # ได้ เนื่องจากข้อความมีการเปลี่ยนแปลง ถามอีกครั้งเพื่อทำซ้ำ} other {ไม่สามารถวางการแก้ไข # ได้ เนื่องจากข้อความมีการเปลี่ยนแปลง ถามอีกครั้งเพื่อทำซ้ำ}}"
-
 #. placeholder {0}: report.ignored.length
 #: src/features/resume/editor/check/check-panel.tsx
 msgid "{0, plural, one {# issue is ignored.} other {# issues are ignored.}}"
 msgstr "{0, plural, one {ปัญหา # จะถูกละเว้น} other {ปัญหา # จะถูกละเว้น}}"
+
+#. placeholder {0}: skipped.length
+#: src/features/assistant/conversation.tsx
+msgid "{0, plural, one {# proposal couldn't be placed. Ask again to redo it.} other {# proposals couldn't be placed. Ask again to redo them.}}"
+msgstr ""
 
 #. placeholder {0}: proposals.length
 #: src/features/assistant/conversation.tsx
@@ -308,9 +308,17 @@ msgstr "ใช้ {accepted} ของ {0}"
 msgid "{applicationCount, plural, one {# application} other {# applications}}"
 msgstr "{applicationCount, plural, one {สมัครงาน #} other {สมัครงาน #}}"
 
+#: src/features/assistant/conversation.tsx
+msgid "{applied, plural, one {# change} other {# changes}}"
+msgstr ""
+
 #: src/features/documents/new-document-dialog.tsx
 msgid "{base} (copy)"
 msgstr "{base} (สำเนา)"
+
+#: src/features/assistant/conversation.tsx
+msgid "{choice} — applied {count}; {stale} were out of date."
+msgstr ""
 
 #: src/features/resume/editor/write/section-row.tsx
 msgid "{column, plural, one {# column} other {# columns}}"

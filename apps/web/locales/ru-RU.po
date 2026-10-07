@@ -104,15 +104,15 @@ msgstr "{0, plural, one {Контакт # имеет неверный адрес
 msgid "{0, plural, one {# day} other {# days}}"
 msgstr "{0, plural, one {# день} other {# дней}}"
 
-#. placeholder {0}: output.skipped.length
-#: src/features/assistant/conversation.tsx
-msgid "{0, plural, one {# edit couldn't be placed: its text changed. Ask again to redo it.} other {# edits couldn't be placed: their text changed. Ask again to redo them.}}"
-msgstr "{0, plural, one {Редактирование # не удалось разместить: его текст изменился. Попросите еще раз переделать.} other {Не удалось разместить изменения #: их текст изменился. Попросите еще раз переделать их.}}"
-
 #. placeholder {0}: report.ignored.length
 #: src/features/resume/editor/check/check-panel.tsx
 msgid "{0, plural, one {# issue is ignored.} other {# issues are ignored.}}"
 msgstr "{0, plural, one {Проблема # игнорируется.} other {Проблемы # игнорируются.}}"
+
+#. placeholder {0}: skipped.length
+#: src/features/assistant/conversation.tsx
+msgid "{0, plural, one {# proposal couldn't be placed. Ask again to redo it.} other {# proposals couldn't be placed. Ask again to redo them.}}"
+msgstr ""
 
 #. placeholder {0}: proposals.length
 #: src/features/assistant/conversation.tsx
@@ -308,9 +308,17 @@ msgstr "{accepted} из {0} применен"
 msgid "{applicationCount, plural, one {# application} other {# applications}}"
 msgstr "{applicationCount, plural, one {# заявление о приеме на работу} other {# заявления о приеме на работу}}"
 
+#: src/features/assistant/conversation.tsx
+msgid "{applied, plural, one {# change} other {# changes}}"
+msgstr ""
+
 #: src/features/documents/new-document-dialog.tsx
 msgid "{base} (copy)"
 msgstr "{base} (копия)"
+
+#: src/features/assistant/conversation.tsx
+msgid "{choice} — applied {count}; {stale} were out of date."
+msgstr ""
 
 #: src/features/resume/editor/write/section-row.tsx
 msgid "{column, plural, one {# column} other {# columns}}"

@@ -104,15 +104,15 @@ msgstr "{0, plural, one {# stik ima neveljaven e-poštni naslov ali nima imena; 
 msgid "{0, plural, one {# day} other {# days}}"
 msgstr "{0, plural, one {# dan} other {# dni}}"
 
-#. placeholder {0}: output.skipped.length
-#: src/features/assistant/conversation.tsx
-msgid "{0, plural, one {# edit couldn't be placed: its text changed. Ask again to redo it.} other {# edits couldn't be placed: their text changed. Ask again to redo them.}}"
-msgstr "{0, plural, one {Urejanja # ni bilo mogoče umestiti: besedilo se je spremenilo. Prosite znova, da ga ponovite.} other {# urejanj ni bilo mogoče umestiti: njihovo besedilo se je spremenilo. Prosite znova, da jih ponovite.}}"
-
 #. placeholder {0}: report.ignored.length
 #: src/features/resume/editor/check/check-panel.tsx
 msgid "{0, plural, one {# issue is ignored.} other {# issues are ignored.}}"
 msgstr "{0, plural, one {Težava # je prezrta.} other {Težave # so prezrte.}}"
+
+#. placeholder {0}: skipped.length
+#: src/features/assistant/conversation.tsx
+msgid "{0, plural, one {# proposal couldn't be placed. Ask again to redo it.} other {# proposals couldn't be placed. Ask again to redo them.}}"
+msgstr ""
 
 #. placeholder {0}: proposals.length
 #: src/features/assistant/conversation.tsx
@@ -308,9 +308,17 @@ msgstr "Uporabljen je {accepted} od {0}"
 msgid "{applicationCount, plural, one {# application} other {# applications}}"
 msgstr "{applicationCount, plural, one {# prošnja za delo} other {# prošnje za delo}}"
 
+#: src/features/assistant/conversation.tsx
+msgid "{applied, plural, one {# change} other {# changes}}"
+msgstr ""
+
 #: src/features/documents/new-document-dialog.tsx
 msgid "{base} (copy)"
 msgstr "{base} (kopija)"
+
+#: src/features/assistant/conversation.tsx
+msgid "{choice} — applied {count}; {stale} were out of date."
+msgstr ""
 
 #: src/features/resume/editor/write/section-row.tsx
 msgid "{column, plural, one {# column} other {# columns}}"

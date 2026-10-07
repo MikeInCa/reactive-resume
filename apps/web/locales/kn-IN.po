@@ -104,15 +104,15 @@ msgstr "{0, plural, one {# ಸಂಪರ್ಕವು ಅಮಾನ್ಯವಾದ 
 msgid "{0, plural, one {# day} other {# days}}"
 msgstr "{0, plural, one {# ದಿನ} other {# ದಿನಗಳು}}"
 
-#. placeholder {0}: output.skipped.length
-#: src/features/assistant/conversation.tsx
-msgid "{0, plural, one {# edit couldn't be placed: its text changed. Ask again to redo it.} other {# edits couldn't be placed: their text changed. Ask again to redo them.}}"
-msgstr "{0, plural, one {# ಸಂಪಾದನೆಯನ್ನು ಇರಿಸಲಾಗಲಿಲ್ಲ: ಅದರ ಪಠ್ಯ ಬದಲಾಗಿದೆ. ಅದನ್ನು ಪುನಃ ಮಾಡಲು ಮತ್ತೊಮ್ಮೆ ಕೇಳಿ.} other {# ಸಂಪಾದನೆಗಳನ್ನು ಇರಿಸಲಾಗಲಿಲ್ಲ: ಅವುಗಳ ಪಠ್ಯ ಬದಲಾಗಿದೆ. ಅವುಗಳನ್ನು ಪುನಃ ಮಾಡಲು ಮತ್ತೊಮ್ಮೆ ಕೇಳಿ.}}"
-
 #. placeholder {0}: report.ignored.length
 #: src/features/resume/editor/check/check-panel.tsx
 msgid "{0, plural, one {# issue is ignored.} other {# issues are ignored.}}"
 msgstr "{0, plural, one {# ಸಮಸ್ಯೆಯನ್ನು ನಿರ್ಲಕ್ಷಿಸಲಾಗಿದೆ.} other {# ಸಮಸ್ಯೆಗಳನ್ನು ನಿರ್ಲಕ್ಷಿಸಲಾಗಿದೆ.}}"
+
+#. placeholder {0}: skipped.length
+#: src/features/assistant/conversation.tsx
+msgid "{0, plural, one {# proposal couldn't be placed. Ask again to redo it.} other {# proposals couldn't be placed. Ask again to redo them.}}"
+msgstr ""
 
 #. placeholder {0}: proposals.length
 #: src/features/assistant/conversation.tsx
@@ -308,9 +308,17 @@ msgstr "{0} ನ {accepted} ಅನ್ವಯಿಸಲಾಗಿದೆ"
 msgid "{applicationCount, plural, one {# application} other {# applications}}"
 msgstr "{applicationCount, plural, one {# ಉದ್ಯೋಗ ಅಪ್ಲಿಕೇಶನ್} other {# ಉದ್ಯೋಗ ಅರ್ಜಿಗಳು}}"
 
+#: src/features/assistant/conversation.tsx
+msgid "{applied, plural, one {# change} other {# changes}}"
+msgstr ""
+
 #: src/features/documents/new-document-dialog.tsx
 msgid "{base} (copy)"
 msgstr "{base} (ನಕಲು)"
+
+#: src/features/assistant/conversation.tsx
+msgid "{choice} — applied {count}; {stale} were out of date."
+msgstr ""
 
 #: src/features/resume/editor/write/section-row.tsx
 msgid "{column, plural, one {# column} other {# columns}}"
