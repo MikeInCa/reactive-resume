@@ -241,3 +241,15 @@ describe("applyPatchTo", () => {
 		expect(() => applyPatchTo(header, [{ op: "test", path: "/recipientName", value: "Nope" }])).toThrow();
 	});
 });
+
+describe("append preconditions", () => {
+	it("tests the array's last element before an append, so an applied append reads as accepted until undone", () => {
+		const d = sample();
+		const ops = withPreconditions(d, [
+			{ op: "add", path: "/sections/skills/items/-", value: { id: "s9", name: "Go" } },
+		]);
+		expect(ops[0]).toEqual({ op: "test", path: "/sections/skills/items/1", value: d.sections.skills.items[1] });
+		const emptyList = withPreconditions(d, [{ op: "add", path: "/sections/languages/items/-", value: { id: "l1" } }]);
+		expect(emptyList[0]).toEqual({ op: "test", path: "/sections/languages/items", value: [] });
+	});
+});

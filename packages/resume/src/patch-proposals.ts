@@ -138,8 +138,18 @@ export function withPreconditions(data: unknown, operations: JsonPatchOperation[
 		seen.add(path);
 		tests.push({ op: "test", path, value: structuredClone(value) });
 	};
+	// An append can't be tested at its own path; test the list's last element (or that the list is empty) instead, so
+	// an applied append reads as accepted until it's undone.
+	const testAppend = (path: string) => {
+		const parent = path.slice(0, -"/-".length);
+		const list = read(data, parent);
+		if (!Array.isArray(list)) return;
+		if (list.length === 0) test(parent);
+		else test(`${parent}/${list.length - 1}`);
+	};
 	for (const operation of operations) {
-		if (operation.op === "replace" || operation.op === "remove" || operation.op === "add") test(operation.path);
+		if (operation.op === "add" && operation.path.endsWith("/-")) testAppend(operation.path);
+		else if (operation.op === "replace" || operation.op === "remove" || operation.op === "add") test(operation.path);
 		if (operation.op === "move" || operation.op === "copy") test(operation.from);
 	}
 	return [...tests, ...operations];
