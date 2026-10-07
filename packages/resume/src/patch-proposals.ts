@@ -2,6 +2,7 @@ import type { JsonPatchOperation } from "./patch";
 import type { Proposal, ProposalChange, ProposalTarget } from "./proposals";
 import type { ResumeData } from "@reactive-resume/schema/resume/data";
 import jsonpatch from "fast-json-patch";
+import { customSectionItemDefinitionByType } from "@reactive-resume/schema/resume/data";
 import { parseResumeDataForWrite } from "@reactive-resume/schema/resume/write";
 import { applyResumePatches } from "./patch";
 import { blockText } from "./proposals";
@@ -51,6 +52,9 @@ export function contentPathProblem(path: string): string | null {
 		const last = s.at(-1);
 		if ((last === "period" || last === "date") && s.length >= 5 && s[s.length - 2] !== "dates")
 			return "Write `dates` ({ start, end, present, raw }); `period` and `date` text is generated from it.";
+		// …/items/<i>/id and …/items/<i>/roles/<j>/id: ids are what everything else points at.
+		if (last === "id" && (s.length === 5 || (s.length === 7 && s[4] === "roles")))
+			return "Entry and role ids are fixed; add a new entry with its own id instead of changing one.";
 		return null;
 	}
 	return `Unknown path root "${root ?? ""}". Paths start at the resume data: /basics, /summary, /sections, /customSections.`;
@@ -285,6 +289,31 @@ export function describeChanges(
 	return rows;
 }
 
+const ROLE_FIELDS = ["id", "position", "period", "dates", "description"];
+
+/** The field names an entry of a section type may carry, from its schema. */
+function fieldsOfType(type: string): string[] | undefined {
+	const definition = (customSectionItemDefinitionByType as Record<string, { schema: unknown }>)[type];
+	const shape = (definition?.schema as { shape?: Record<string, unknown> } | undefined)?.shape;
+	return shape ? Object.keys(shape) : undefined;
+}
+
+/** For an add/replace directly on an entry's or role's field: the reason when the field name isn't one of its type's. */
+function unknownFieldProblem(data: ResumeData, operation: JsonPatchOperation): string | null {
+	if (operation.op !== "add" && operation.op !== "replace") return null;
+	const s = segmentsOf(operation.path);
+	const onEntry = s.length === 5 && s[2] === "items";
+	const onRole = s.length === 7 && s[2] === "items" && s[4] === "roles";
+	if (!onEntry && !onRole) return null;
+	const field = s.at(-1) ?? "";
+	if (/^\d+$/.test(field) || field === "-") return null;
+	const section = sectionOf(data, { sectionId: s[1] ?? "", rest: [] });
+	const type = s[0] === "sections" ? (s[1] ?? "") : String((section as { type?: unknown } | undefined)?.type ?? "");
+	const known = onRole ? ROLE_FIELDS : fieldsOfType(type);
+	if (!known || known.includes(field)) return null;
+	return `unknown field "${field}" on ${onRole ? "a role" : `a ${type} entry`}; its fields are ${known.join(", ")}.`;
+}
+
 /** Normalises, bounds, dry-applies and describes one change; a problem comes back as a reason the model can act on. */
 export function resolvePatchProposal(
 	data: ResumeData,
@@ -295,8 +324,15 @@ export function resolvePatchProposal(
 	const operations = normalizePatchPaths(data, change.operations);
 	for (const operation of operations) {
 		const problem =
-			contentPathProblem(operation.path) ?? ("from" in operation ? contentPathProblem(operation.from) : null);
+			contentPathProblem(operation.path) ??
+			("from" in operation ? contentPathProblem(operation.from) : null) ??
+			unknownFieldProblem(data, operation);
 		if (problem) return { reason: `${operation.path}: ${problem}` };
+		const place = placeOf(operation.path);
+		if (operation.op === "copy" && place.itemIndex !== undefined && place.field === undefined)
+			return {
+				reason: `${operation.path}: copying an entry duplicates its id; add a new entry with its own id instead.`,
+			};
 	}
 	// Both sides go through the write-time parse, so what it regenerates (period text from dates) isn't read as a change.
 	let before: ResumeData;

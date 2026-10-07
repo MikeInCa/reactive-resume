@@ -317,3 +317,49 @@ describe("custom sections", () => {
 		expect(rows[0]?.label).toBe("Tools · Hammer · Name");
 	});
 });
+
+describe("minor fixes from the R7 review", () => {
+	it("refuses to copy an entry, and refuses to write an entry's or a role's id", () => {
+		const d = sample();
+		const reason = (ops: Parameters<typeof resolvePatchProposal>[1]["operations"]) => {
+			const r = resolvePatchProposal(d, { why: "x", operations: ops }, labels, "c");
+			return "reason" in r ? r.reason : "";
+		};
+		expect(reason([{ op: "copy", from: "/sections/skills/items/0", path: "/sections/skills/items/-" }])).toMatch(
+			/copy|own id/i,
+		);
+		expect(contentPathProblem("/sections/skills/items/0/id")).toMatch(/id/);
+		expect(contentPathProblem("/sections/experience/items/0/roles/0/id")).toMatch(/id/);
+		expect(contentPathProblem("/basics/customFields/0/id")).toBeNull();
+	});
+
+	it("names an unknown field instead of calling the change a no-op, and still allows adding dates to a legacy entry", () => {
+		const d = sample();
+		const r = resolvePatchProposal(
+			d,
+			{ why: "x", operations: [{ op: "add", path: "/sections/experience/items/0/positon", value: "X" }] },
+			labels,
+			"c",
+		);
+		expect("reason" in r ? r.reason : "").toMatch(/unknown field "positon"/);
+		const entry = d.sections.experience.items[0];
+		if (!entry) throw new Error("fixture");
+		delete (entry as { dates?: unknown }).dates;
+		const ok = resolvePatchProposal(
+			d,
+			{
+				why: "x",
+				operations: [
+					{
+						op: "add",
+						path: "/sections/experience/items/0/dates",
+						value: { start: "2016-01", end: null, present: true },
+					},
+				],
+			},
+			labels,
+			"c",
+		);
+		expect("proposal" in ok).toBe(true);
+	});
+});

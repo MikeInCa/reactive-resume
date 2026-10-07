@@ -275,3 +275,46 @@ describe("accepted appends", () => {
 		expect(getProposalState(d, append)).toBe("pending");
 	});
 });
+
+describe("minor fixes from the R7 review", () => {
+	it("judges a test op by value, not by key order, and never mutates the document", () => {
+		const d = structuredClone(defaultResumeData);
+		const website = { label: d.basics.website.label, url: d.basics.website.url }; // keys reversed
+		const frozen = JSON.stringify(d);
+		expect(patchTestsPass(d, [{ op: "test", path: "/basics/website", value: website }])).toBe(true);
+		expect(patchTestsPass(d, [{ op: "test", path: "/basics/website", value: { ...website, url: "x" } }])).toBe(false);
+		expect(patchTestsPass(d, [{ op: "test", path: "/nope/nope", value: 1 }])).toBe(false);
+		expect(JSON.stringify(d)).toBe(frozen);
+	});
+
+	it("inserts a copy of an added value, so the proposal's operations stay independent of the draft", () => {
+		const d = structuredClone(defaultResumeData);
+		const value = {
+			id: "s9",
+			hidden: false,
+			name: "Go",
+			proficiency: "",
+			level: 0,
+			keywords: [],
+			icon: "",
+			iconColor: "",
+		};
+		const add = {
+			id: "a1",
+			kind: "patch" as const,
+			target: { sectionId: "skills", field: "items" },
+			location: "Skills",
+			before: "",
+			after: "Add entry “Go”",
+			why: "w",
+			status: "pending" as const,
+			source: "assistant" as const,
+			operations: [{ op: "add" as const, path: "/sections/skills/items/-", value }],
+			changes: [],
+		};
+		expect(applyProposal(d, add)).toBe(true);
+		const inserted = d.sections.skills.items.find((item) => item.id === "s9");
+		expect(inserted).toEqual(value);
+		expect(inserted).not.toBe(value);
+	});
+});

@@ -44,8 +44,8 @@ export function patchTestsPass(document: unknown, operations: readonly JsonPatch
 	try {
 		for (const operation of operations) {
 			if (operation.op !== "test") continue;
-			const result = jsonpatch.applyOperation(document, operation, true, false);
-			if (result.test === false) return false;
+			// A direct read and compare: applyOperation would deep-clone the whole document per test.
+			if (!jsonpatch._areEquals(jsonpatch.getValueByPointer(document, operation.path), operation.value)) return false;
 		}
 		return true;
 	} catch {
@@ -174,7 +174,8 @@ export function applyProposal(draft: ResumeData, proposal: Proposal): boolean {
 		const operations = proposal.operations ?? [];
 		if (operations.length === 0 || !patchTestsPass(draft, operations)) return false;
 		try {
-			jsonpatch.applyPatch(draft, operations, true, true);
+			// Cloned first: `add` inserts its value by reference, which would alias the proposal into the draft.
+			jsonpatch.applyPatch(draft, structuredClone(operations), true, true);
 			return true;
 		} catch {
 			return false;
