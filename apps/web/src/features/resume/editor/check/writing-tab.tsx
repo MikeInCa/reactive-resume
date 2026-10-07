@@ -56,7 +56,7 @@ export function WritingTab({ data, issues }: WritingTabProps) {
 	const { mutate, isPending, error, reset } = useMutation({
 		...orpc.ai.atsReview.mutationOptions(),
 		onSuccess: (result) => {
-			const { proposals: next, notes } = mapWritingReview(result.suggestions, passages);
+			const { proposals: next, notes } = mapWritingReview(result.suggestions, passages, data);
 			setProposals(next);
 			setWritingReview({ summary: result.summary, strengths: result.strengths, notes });
 		},

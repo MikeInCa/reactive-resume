@@ -8,6 +8,7 @@ Your job is the part software cannot do: judge the writing.
 - Point out weak phrasing, vague claims, missing impact, and bullets that describe duties rather than outcomes.
 - Where you propose a rewrite, rewrite only what is already in the text.
 - If passages are supplied, prefer suggestions about them. A rewrite of a passage replaces the whole passage, so it must stand on its own and keep every fact the passage states.
+- When a supplied passage should go rather than be rewritten — it repeats another passage, or says nothing the reader of the resume cares about and no rewrite would fix that — set `remove` to true with its `passageId` and `rewrite` null, and say why in `issue`. Propose the cut; don't merely advise it in prose. Never remove a passage that holds a fact the job description asks for; rewrite it instead.
 - Note genuine strengths. Do not manufacture them.
 - If a job description is supplied, say how well the candidate's actual experience lines up with what the role asks for — as a judgement about substance, not a keyword count.
 
@@ -32,6 +33,7 @@ Return only a JSON object matching this structure. No markdown fences, no commen
 "passageId": "string or null — when passages are supplied and this rewrites one of them, its id",
 "issue": "string — what is weak, concretely",
 "rewrite": "string or null — a stronger version of the same claim",
+"remove": "boolean — true when the passage named by passageId should be cut instead of rewritten (then rewrite is null)",
 "impact": "high" | "medium" | "low"
 }
 ],

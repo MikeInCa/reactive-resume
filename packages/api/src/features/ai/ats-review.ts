@@ -36,7 +36,7 @@ export const atsReviewInputSchema = z.object({
 		.max(MAX_PASSAGES)
 		.default([])
 		.describe(
-			"Bullets and paragraphs the review may rewrite. A suggestion that rewrites one names it in `passageId`, with the whole new passage in `rewrite`.",
+			"Bullets and paragraphs the review may rewrite or remove. A suggestion that rewrites one names it in `passageId`, with the whole new passage in `rewrite`; one that cuts it sets `remove` to true instead.",
 		),
 });
 
@@ -61,6 +61,8 @@ export const atsReviewOutputSchema = z.object({
 				issue: z.string().catch(""),
 				rewrite: z.string().nullable().catch(null),
 				impact: impactSchema,
+				/** Cut the passage instead of rewriting it; only meaningful with a `passageId`. */
+				remove: z.boolean().catch(false),
 			}),
 		)
 		.catch([])
@@ -117,9 +119,9 @@ function renderPassagesSection(passages: AtsReviewInput["passages"]): string {
 
 	return [
 		"",
-		"## Passages you may rewrite",
+		"## Passages you may rewrite or remove",
 		"",
-		"Each line is `[id] where: text`. When a suggestion rewrites one of these, set `passageId` to its id and `rewrite` to the whole new passage.",
+		"Each line is `[id] where: text`. When a suggestion rewrites one of these, set `passageId` to its id and `rewrite` to the whole new passage. When one should be cut rather than rewritten, set `passageId` and `remove` to true, with `rewrite` null.",
 		"",
 		"<<<PASSAGES_START>>>",
 		...passages.map((passage) => `[${passage.id}] ${passage.where}: ${passage.text.replace(/\s+/g, " ")}`),
