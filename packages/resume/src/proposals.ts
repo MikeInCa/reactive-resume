@@ -1,4 +1,6 @@
+import type { JsonPatchOperation } from "./patch";
 import type { ResumeData } from "@reactive-resume/schema/resume/data";
+import jsonpatch from "fast-json-patch";
 import { escapeHtml } from "@reactive-resume/utils/string";
 
 /**
@@ -24,7 +26,40 @@ export type Proposal = {
 	why: string;
 	status: "pending" | "accepted" | "rejected";
 	source: ProposalSource;
+	/** Absent or "passage": a rich-text block replacement. "patch": JSON Patch operations on the document. */
+	kind?: "passage" | "patch";
+	/** Patch proposals: `test` preconditions first, then the change. */
+	operations?: JsonPatchOperation[];
+	/** Patch proposals: one readable row per touched field or entry. */
+	changes?: ProposalChange[];
 };
+
+/** One row of a patch proposal's card: where, and the old and new value (or what happens to an entry). */
+export type ProposalChange = { path: string; label: string; before: string; after: string };
+
+export const isPatchProposal = (proposal: Pick<Proposal, "kind">) => proposal.kind === "patch";
+
+/** Whether every `test` operation holds against the document as it is now. Never mutates. */
+export function patchTestsPass(document: unknown, operations: readonly JsonPatchOperation[]): boolean {
+	try {
+		for (const operation of operations) {
+			if (operation.op !== "test") continue;
+			const result = jsonpatch.applyOperation(document, operation, true, false);
+			if (result.test === false) return false;
+		}
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+/** A patch proposal's state: pending while its preconditions hold, accepted once applied, pending again if undone. */
+export function getPatchProposalState(document: unknown, proposal: Proposal): ProposalState {
+	if (proposal.status === "rejected") return "rejected";
+	const holds = patchTestsPass(document, proposal.operations ?? []);
+	if (proposal.status === "accepted") return holds ? "pending" : "accepted";
+	return holds ? "pending" : "stale";
+}
 
 /** Out of date is not stored: it's whenever the passage is no longer in the field. */
 export type ProposalState = Proposal["status"] | "stale";
@@ -72,7 +107,9 @@ export function canApplyTo(value: string | undefined, { before }: Pick<Proposal,
 }
 
 export const canApply = (data: ResumeData, proposal: Proposal) =>
-	canApplyTo(readTarget(data, proposal.target), proposal);
+	isPatchProposal(proposal)
+		? patchTestsPass(data, proposal.operations ?? [])
+		: canApplyTo(readTarget(data, proposal.target), proposal);
 
 /**
  * What a proposal shows as, given the text it targets. Pending ones whose passage has changed are out of date;
@@ -89,7 +126,9 @@ export function getStateIn(value: string, proposal: Proposal): ProposalState {
 }
 
 export const getProposalState = (data: ResumeData, proposal: Proposal): ProposalState =>
-	getStateIn(readTarget(data, proposal.target) ?? "", proposal);
+	isPatchProposal(proposal)
+		? getPatchProposalState(data, proposal)
+		: getStateIn(readTarget(data, proposal.target) ?? "", proposal);
 
 /** The text with `after` in place of `before`, or `undefined` when the proposal is out of date. */
 export function applyTo(value: string | undefined, proposal: Pick<Proposal, "before" | "after">) {
@@ -100,6 +139,16 @@ export function applyTo(value: string | undefined, proposal: Pick<Proposal, "bef
 
 /** Puts `after` in place of `before`. Returns false (changing nothing) when the proposal is out of date. */
 export function applyProposal(draft: ResumeData, proposal: Proposal): boolean {
+	if (isPatchProposal(proposal)) {
+		const operations = proposal.operations ?? [];
+		if (operations.length === 0 || !patchTestsPass(draft, operations)) return false;
+		try {
+			jsonpatch.applyPatch(draft, operations, true, true);
+			return true;
+		} catch {
+			return false;
+		}
+	}
 	const next = applyTo(readTarget(draft, proposal.target), proposal);
 	if (next === undefined) return false;
 	writeTarget(draft, proposal.target, next);

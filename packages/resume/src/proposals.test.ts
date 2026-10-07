@@ -7,8 +7,11 @@ import {
 	applyTo,
 	collectLetterPassages,
 	collectPassages,
+	getPatchProposalState,
+	getProposalState,
 	getStateIn,
 	locatePassage,
+	patchTestsPass,
 	readTarget,
 	removalOf,
 } from "./proposals";
@@ -175,5 +178,62 @@ describe("locatePassage", () => {
 		expect(locatePassage(passages, { before: "<li><p>One</p></li>", target })).toBe("Letter · bullet 1");
 		expect(locatePassage(passages, { before: "<p>Two</p>", target })).toBeUndefined();
 		expect(locatePassage(passages, { before: "<p>One</p>", target: { ...target, field: "other" } })).toBeUndefined();
+	});
+});
+
+describe("patch proposals", () => {
+	const data = () => {
+		const d = structuredClone(defaultResumeData);
+		d.basics.headline = "Junior Designer";
+		return d;
+	};
+	const patch = (status: "pending" | "accepted" | "rejected" = "pending") => ({
+		id: "c1",
+		kind: "patch" as const,
+		target: { sectionId: "basics", field: "headline" },
+		location: "Basics · Headline",
+		before: "Junior Designer",
+		after: "Product Designer",
+		why: "Matches the posting.",
+		status,
+		source: "assistant" as const,
+		operations: [
+			{ op: "test" as const, path: "/basics/headline", value: "Junior Designer" },
+			{ op: "replace" as const, path: "/basics/headline", value: "Product Designer" },
+		],
+		changes: [
+			{ path: "/basics/headline", label: "Basics · Headline", before: "Junior Designer", after: "Product Designer" },
+		],
+	});
+
+	it("is pending while its tests pass and out of date once they fail", () => {
+		const d = data();
+		expect(patchTestsPass(d, patch().operations)).toBe(true);
+		expect(getProposalState(d, patch())).toBe("pending");
+		expect(getPatchProposalState(d, patch())).toBe("pending");
+		d.basics.headline = "Someone edited this";
+		expect(getProposalState(d, patch())).toBe("stale");
+		expect(getProposalState(d, patch("rejected"))).toBe("rejected");
+	});
+
+	it("applies through JSON Patch, then reads as accepted, and as pending again after an undo", () => {
+		const d = data();
+		expect(applyProposal(d, patch())).toBe(true);
+		expect(d.basics.headline).toBe("Product Designer");
+		expect(getProposalState(d, patch("accepted"))).toBe("accepted");
+		expect(applyProposal(d, patch())).toBe(false); // the test op fails now
+		d.basics.headline = "Junior Designer"; // undo
+		expect(getProposalState(d, patch("accepted"))).toBe("pending");
+	});
+
+	it("leaves passage proposals exactly as before", () => {
+		const passage = {
+			...patch(),
+			kind: "passage" as const,
+			target: { sectionId: "summary", field: "content" },
+			before: "<p>One</p>",
+			after: "<p>Two</p>",
+		};
+		expect(getStateIn("<p>One</p>", passage)).toBe("pending");
 	});
 });
