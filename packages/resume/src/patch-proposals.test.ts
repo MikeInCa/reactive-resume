@@ -242,24 +242,78 @@ describe("applyPatchTo", () => {
 	});
 });
 
-describe("append preconditions", () => {
-	it("tests the array's last element before an append, so an applied append reads as accepted until undone", () => {
+describe("appends", () => {
+	it("carry no precondition (JSON Patch can't test a missing index); indexed adds at or past the end are appends too", () => {
 		const d = sample();
-		const ops = withPreconditions(d, [
+		const dash = withPreconditions(d, [
 			{ op: "add", path: "/sections/skills/items/-", value: { id: "s9", name: "Go" } },
 		]);
-		expect(ops[0]).toEqual({ op: "test", path: "/sections/skills/items/1", value: d.sections.skills.items[1] });
-		const emptyList = withPreconditions(d, [{ op: "add", path: "/sections/languages/items/-", value: { id: "l1" } }]);
-		expect(emptyList[0]).toEqual({ op: "test", path: "/sections/languages/items", value: [] });
-	});
-
-	it("treats an add at the index just past the end as an append (models write /items/2 instead of /items/-)", () => {
-		const d = sample();
-		const ops = withPreconditions(d, [
+		expect(dash.filter((op) => op.op === "test")).toEqual([]);
+		const indexed = withPreconditions(d, [
 			{ op: "add", path: "/sections/skills/items/2", value: { id: "s9", name: "Go" } },
 		]);
-		expect(ops[0]).toEqual({ op: "test", path: "/sections/skills/items/1", value: d.sections.skills.items[1] });
-		const beyond = withPreconditions(d, [{ op: "add", path: "/sections/skills/items/9", value: { id: "s9" } }]);
-		expect(beyond[0]).toEqual({ op: "test", path: "/sections/skills/items/1", value: d.sections.skills.items[1] });
+		expect(indexed.filter((op) => op.op === "test")).toEqual([]);
+		const insert = withPreconditions(d, [
+			{ op: "add", path: "/sections/skills/items/0", value: { id: "s9", name: "Go" } },
+		]);
+		expect(insert[0]).toEqual({ op: "test", path: "/sections/skills/items/0", value: d.sections.skills.items[0] });
+	});
+
+	it("describe a keyword or custom-field append with the added value, without a trailing index in the label", () => {
+		const before = sample();
+		const after = structuredClone(before);
+		const figma = after.sections.skills.items[0];
+		if (!figma) throw new Error("fixture");
+		figma.keywords = ["Design systems"];
+		const rows = describeChanges(
+			before,
+			after,
+			[{ op: "add", path: "/sections/skills/items/0/keywords/-", value: "Design systems" }],
+			labels,
+		);
+		expect(rows).toEqual([
+			{
+				path: "/sections/skills/items/0/keywords/-",
+				label: "Skills · Figma · Keywords",
+				before: "",
+				after: "Add “Design systems”",
+			},
+		]);
+	});
+});
+
+describe("custom sections", () => {
+	it("labels a change in a custom section with the section's title, not its index", () => {
+		const before = sample();
+		before.customSections = [
+			{
+				id: "tools",
+				type: "skills",
+				title: "Tools",
+				icon: "",
+				columns: 1,
+				hidden: false,
+				showHeading: true,
+				keepTogether: false,
+				startOnNewPage: false,
+				items: [
+					{ id: "t1", hidden: false, name: "Hammer", proficiency: "", level: 0, keywords: [], icon: "", iconColor: "" },
+				],
+			} as never,
+		];
+		const after = structuredClone(before);
+		const hammer = (after.customSections[0] as { items: Array<{ name: string }> }).items[0];
+		if (!hammer) throw new Error("fixture");
+		hammer.name = "Mallet";
+		const rows = describeChanges(
+			before,
+			after,
+			[{ op: "replace", path: "/customSections/0/items/0/name", value: "Mallet" }],
+			{
+				...labels,
+				sectionTitle: (id) => (id === "tools" ? "Tools" : id),
+			},
+		);
+		expect(rows[0]?.label).toBe("Tools · Hammer · Name");
 	});
 });

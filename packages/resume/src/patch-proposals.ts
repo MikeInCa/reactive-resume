@@ -92,6 +92,7 @@ const FIELD_LABELS: Record<string, string> = {
 	level: "Level",
 	proficiency: "Proficiency",
 	keywords: "Keywords",
+	customFields: "Custom fields",
 	hidden: "Hidden",
 	start: "Start",
 	end: "End",
@@ -138,30 +139,21 @@ export function withPreconditions(data: unknown, operations: JsonPatchOperation[
 		seen.add(path);
 		tests.push({ op: "test", path, value: structuredClone(value) });
 	};
-	// An append can't be tested at its own path; test the list's last element (or that the list is empty) instead, so
-	// an applied append reads as accepted until it's undone.
-	const testAppend = (parent: string) => {
-		const list = read(data, parent);
-		if (!Array.isArray(list)) return;
-		if (list.length === 0) test(parent);
-		else test(`${parent}/${list.length - 1}`);
-	};
 	// An add is an append when its path ends in "-" or in an index at or past the end of the list (models write
-	// /items/2 for a two-item list as often as /items/-).
-	const appendParent = (path: string): string | undefined => {
+	// /items/2 for a two-item list as often as /items/-). JSON Patch can't test a missing index, so an append carries
+	// no precondition; `getPatchProposalState` judges an accepted add by whether what it added is still there.
+	const isAppend = (path: string): boolean => {
 		const slash = path.lastIndexOf("/");
-		if (slash < 0) return undefined;
-		const parent = path.slice(0, slash);
+		if (slash < 0) return false;
 		const last = path.slice(slash + 1);
-		if (last === "-") return parent;
-		if (!/^\d+$/.test(last)) return undefined;
-		const list = read(data, parent);
-		return Array.isArray(list) && Number(last) >= list.length ? parent : undefined;
+		if (last === "-") return true;
+		if (!/^\d+$/.test(last)) return false;
+		const list = read(data, path.slice(0, slash));
+		return Array.isArray(list) && Number(last) >= list.length;
 	};
 	for (const operation of operations) {
-		const parent = operation.op === "add" ? appendParent(operation.path) : undefined;
-		if (parent !== undefined) testAppend(parent);
-		else if (operation.op === "replace" || operation.op === "remove" || operation.op === "add") test(operation.path);
+		if (operation.op === "add" && isAppend(operation.path)) continue;
+		if (operation.op === "replace" || operation.op === "remove" || operation.op === "add") test(operation.path);
 		if (operation.op === "move" || operation.op === "copy") test(operation.from);
 	}
 	return [...tests, ...operations];
@@ -232,12 +224,15 @@ export function describeChanges(
 	for (const operation of operations) {
 		if (operation.op === "test") continue;
 		const place = placeOf(operation.path);
+		const custom = Object.hasOwn(before.sections, place.sectionId)
+			? undefined
+			: (before.customSections[Number(place.sectionId)] ?? after.customSections[Number(place.sectionId)]);
 		const section =
 			place.sectionId === "basics"
 				? "Basics"
 				: place.sectionId === "summary"
 					? "Summary"
-					: labels.sectionTitle(place.sectionId);
+					: labels.sectionTitle(custom ? custom.id : place.sectionId);
 		const isEntry = place.itemIndex !== undefined && place.field === undefined;
 		if (isEntry) {
 			const value =
@@ -258,21 +253,34 @@ export function describeChanges(
 		}
 		const entry = entryOf(before, place) ?? entryOf(after, place);
 		const role = roleOf(entry, place);
+		// An add into a list that isn't the entries list (keywords, custom fields): the label names the list and the
+		// row shows what is added; the index or "-" at the end of the path is not a field.
+		const lastSegment = segmentsOf(operation.path).at(-1) ?? "";
+		const listAppend = operation.op === "add" && (lastSegment === "-" || /^\d+$/.test(lastSegment));
+		const fieldSegments = [place.field ?? "", ...place.rest].filter((r) => !/^\d+$/.test(r) && r !== "-");
 		const label = [
 			section,
 			entry ? labels.entryTitle(entry) : "",
 			role ? String(role.position ?? "") : "",
-			fieldLabel(place.field ?? ""),
-			...place.rest.filter((r) => !/^\d+$/.test(r)).map(fieldLabel),
+			...fieldSegments.map(fieldLabel),
 		]
 			.filter(Boolean)
 			.join(" · ");
-		rows.push({
-			path: operation.path,
-			label,
-			before: displayValue(read(before, operation.path)),
-			after: displayValue(read(after, operation.path)),
-		});
+		rows.push(
+			listAppend
+				? {
+						path: operation.path,
+						label,
+						before: "",
+						after: `Add “${displayValue((operation as { value?: unknown }).value)}”`,
+					}
+				: {
+						path: operation.path,
+						label,
+						before: displayValue(read(before, operation.path)),
+						after: displayValue(read(after, operation.path)),
+					},
+		);
 	}
 	return rows;
 }

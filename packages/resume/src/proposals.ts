@@ -53,11 +53,42 @@ export function patchTestsPass(document: unknown, operations: readonly JsonPatch
 	}
 }
 
-/** A patch proposal's state: pending while its preconditions hold, accepted once applied, pending again if undone. */
+const sameId = (a: unknown, b: unknown) =>
+	typeof a === "object" && a !== null && typeof b === "object" && b !== null && "id" in a && "id" in b
+		? (a as { id: unknown }).id === (b as { id: unknown }).id
+		: JSON.stringify(a) === JSON.stringify(b);
+
+/** Whether an `add` operation's value is in the document now (an entry by its id, anything else by equality). */
+function addedValuePresent(document: unknown, operation: JsonPatchOperation): boolean {
+	if (operation.op !== "add") return false;
+	const slash = operation.path.lastIndexOf("/");
+	const parent = slash < 0 ? "" : operation.path.slice(0, slash);
+	const key = operation.path.slice(slash + 1);
+	let holder: unknown;
+	try {
+		holder = jsonpatch.getValueByPointer(document, parent);
+	} catch {
+		return false;
+	}
+	if (Array.isArray(holder)) return holder.some((item) => sameId(item, operation.value));
+	if (typeof holder === "object" && holder !== null && key in holder)
+		return JSON.stringify((holder as Record<string, unknown>)[key]) === JSON.stringify(operation.value);
+	return false;
+}
+
+/**
+ * A patch proposal's state: pending while its preconditions hold, accepted once applied, pending again if undone.
+ * An add can't be preconditioned (JSON Patch can't test a missing index), so an accepted add is judged by whether
+ * what it added is still there, the way a passage addition is.
+ */
 export function getPatchProposalState(document: unknown, proposal: Proposal): ProposalState {
 	if (proposal.status === "rejected") return "rejected";
-	const holds = patchTestsPass(document, proposal.operations ?? []);
-	if (proposal.status === "accepted") return holds ? "pending" : "accepted";
+	const operations = proposal.operations ?? [];
+	const holds = patchTestsPass(document, operations);
+	if (proposal.status === "accepted") {
+		if (operations.some((operation) => addedValuePresent(document, operation))) return "accepted";
+		return holds ? "pending" : "accepted";
+	}
 	return holds ? "pending" : "stale";
 }
 

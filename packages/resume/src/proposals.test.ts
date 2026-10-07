@@ -237,3 +237,41 @@ describe("patch proposals", () => {
 		expect(getStateIn("<p>One</p>", passage)).toBe("pending");
 	});
 });
+
+describe("accepted appends", () => {
+	it("read as accepted while the added entry is in the list, and pending again once it is gone", () => {
+		const d = structuredClone(defaultResumeData);
+		const append = {
+			id: "a1",
+			kind: "patch" as const,
+			target: { sectionId: "skills", field: "items" },
+			location: "Skills",
+			before: "",
+			after: "Add entry “Go”",
+			why: "Asked for.",
+			status: "accepted" as const,
+			source: "assistant" as const,
+			operations: [
+				{
+					op: "add" as const,
+					path: "/sections/skills/items/-",
+					value: {
+						id: "s9",
+						hidden: false,
+						name: "Go",
+						proficiency: "",
+						level: 0,
+						keywords: [],
+						icon: "",
+						iconColor: "",
+					},
+				},
+			],
+			changes: [{ path: "/sections/skills/items/-", label: "Skills", before: "", after: "Add entry “Go”" }],
+		};
+		expect(applyProposal(d, { ...append, status: "pending" })).toBe(true);
+		expect(getProposalState(d, append)).toBe("accepted");
+		d.sections.skills.items = d.sections.skills.items.filter((item) => item.id !== "s9"); // undo
+		expect(getProposalState(d, append)).toBe("pending");
+	});
+});
