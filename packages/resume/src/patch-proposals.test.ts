@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { experienceItemSchema, skillItemSchema } from "@reactive-resume/schema/resume/data";
 import { defaultResumeData } from "@reactive-resume/schema/resume/default";
 import {
+	applyPatchTo,
 	contentPathProblem,
 	describeChanges,
 	normalizePatchPaths,
@@ -225,5 +226,18 @@ describe("resolvePatchProposal", () => {
 			/does not exist|unresolvable/i,
 		);
 		expect(reason([{ op: "replace", path: "/basics/headline", value: "Junior Designer" }])).toMatch(/doesn't change/i);
+	});
+});
+
+describe("applyPatchTo", () => {
+	it("applies operations to a copy, honouring tests, and leaves the original alone", () => {
+		const header = { name: "Letter", recipientName: "Ms Doe" };
+		const next = applyPatchTo(header, [
+			{ op: "test", path: "/recipientName", value: "Ms Doe" },
+			{ op: "replace", path: "/recipientName", value: "Ms Dow" },
+		]);
+		expect(next).toEqual({ name: "Letter", recipientName: "Ms Dow" });
+		expect(header.recipientName).toBe("Ms Doe");
+		expect(() => applyPatchTo(header, [{ op: "test", path: "/recipientName", value: "Nope" }])).toThrow();
 	});
 });

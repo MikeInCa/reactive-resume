@@ -298,3 +298,8 @@ export function resolvePatchProposal(
 		},
 	};
 }
+
+/** The document with the operations applied (tests included), as a copy; throws when one fails. */
+export function applyPatchTo<T>(document: T, operations: readonly JsonPatchOperation[]): T {
+	return jsonpatch.applyPatch(structuredClone(document), [...operations], true, true).newDocument;
+}

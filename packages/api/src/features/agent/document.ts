@@ -1,10 +1,22 @@
-import type { ProposeEditsInput, ProposeEditsOutput } from "@reactive-resume/ai/tools/agent-tool-contracts";
+import type {
+	ProposeChangesInput,
+	ProposeChangesOutput,
+	ProposeEditsInput,
+	ProposeEditsOutput,
+} from "@reactive-resume/ai/tools/agent-tool-contracts";
 import type { Passage, ProposalTarget } from "@reactive-resume/resume/proposals";
 import type { ResumeData } from "@reactive-resume/schema/resume/data";
 import { and, desc, eq } from "drizzle-orm";
 import { db } from "@reactive-resume/db/client";
 import * as schema from "@reactive-resume/db/schema";
+import { fieldsView } from "@reactive-resume/resume/fields-view";
 import { buildMarkdown } from "@reactive-resume/resume/markdown";
+import {
+	applyPatchTo,
+	displayValue,
+	resolvePatchProposal,
+	withPreconditions,
+} from "@reactive-resume/resume/patch-proposals";
 import {
 	additionAfter,
 	blockText,
@@ -55,8 +67,35 @@ function sectionTitle(data: ResumeData, sectionId: string) {
 	return title?.trim() || fallback.charAt(0).toUpperCase() + fallback.slice(1);
 }
 
+/** A letter's header fields: the only letter fields a patch proposal may change. */
+export type LetterHeader = {
+	name: string;
+	recipient: string;
+	recipientName: string;
+	recipientCompany: string;
+	letterDate: string;
+};
+export const LETTER_FIELD_PATHS = [
+	"/name",
+	"/recipient",
+	"/recipientName",
+	"/recipientCompany",
+	"/letterDate",
+] as const;
+const LETTER_LABELS: Record<string, string> = {
+	name: "Name",
+	recipient: "Recipient block",
+	recipientName: "Recipient name",
+	recipientCompany: "Recipient company",
+	letterDate: "Date",
+};
+
 type LoadedDocument = {
 	kind: AssistantDocument["kind"];
+	/** Resumes: the data the fields view and patch proposals work on. */
+	data?: ResumeData;
+	/** Letters: the header fields a patch proposal may change. */
+	letter?: LetterHeader;
 	name: string;
 	updatedAt: Date;
 	locked: boolean;
@@ -84,6 +123,7 @@ export async function loadDocument(userId: string, document: AssistantDocument):
 			locked: resume.isLocked,
 			applicationId: resume.applicationId,
 			passages,
+			data: resume.data,
 			read: (target) => readTarget(resume.data, target),
 			view: { resume: buildMarkdown(resume.data) },
 		};
@@ -103,6 +143,13 @@ export async function loadDocument(userId: string, document: AssistantDocument):
 		locked: letter.isLocked,
 		applicationId: letter.sourceApplicationId,
 		passages,
+		letter: {
+			name: letter.name,
+			recipient: letter.recipient,
+			recipientName: letter.recipientName,
+			recipientCompany: letter.recipientCompany,
+			letterDate: letter.letterDate ?? "",
+		},
 		read: (target) => (target.field === "content" ? letter.content : undefined),
 		view: {
 			sender: letter.style.basics.name,
@@ -129,8 +176,25 @@ export function documentView(document: LoadedDocument) {
 				location: passage.location,
 				text: passage.text || "(empty)",
 			})),
+			fields: fieldsOf(document),
 		},
 	};
+}
+
+const labelsFor = (data: ResumeData) => ({
+	sectionTitle: (sectionId: string) => sectionTitle(data, sectionId),
+	entryTitle: (entry: Record<string, unknown>) => entryTitle("", entry),
+});
+
+/** Every content field with its address: the resume's fields view, or a letter's header. */
+function fieldsOf(document: LoadedDocument) {
+	if (document.data) return fieldsView(document.data, labelsFor(document.data));
+	if (document.letter)
+		return {
+			conventions: `Paths: ${LETTER_FIELD_PATHS.join(", ")}. The body is edited with propose_edits.`,
+			...document.letter,
+		};
+	return undefined;
 }
 
 /** The posting of the application the document is for: its role, company and description or requirements. */
@@ -216,4 +280,70 @@ export function resolveEdits(document: LoadedDocument, input: ProposeEditsInput)
 	}
 
 	return { title: input.title, edits, skipped };
+}
+
+/** Resolves field changes against the document as it is now; a change that can't be placed is skipped with a reason. */
+export function resolveChanges(document: LoadedDocument, input: ProposeChangesInput): ProposeChangesOutput {
+	const proposals: ProposeChangesOutput["proposals"] = [];
+	const skipped: ProposeChangesOutput["skipped"] = [];
+
+	input.changes.forEach((change, index) => {
+		if (document.data) {
+			const result = resolvePatchProposal(document.data, change, labelsFor(document.data), generateId());
+			if ("reason" in result) skipped.push({ index, reason: result.reason });
+			else proposals.push(result.proposal as ProposeChangesOutput["proposals"][number]);
+			return;
+		}
+		if (!document.letter) {
+			skipped.push({ index, reason: "No document is open." });
+			return;
+		}
+		const header = document.letter;
+		const bad = change.operations.find(
+			(op) => op.op !== "replace" || !(LETTER_FIELD_PATHS as readonly string[]).includes(op.path),
+		);
+		if (bad) {
+			skipped.push({
+				index,
+				reason: `${bad.path}: only replace on a letter header field (${LETTER_FIELD_PATHS.join(", ")}); the body is edited with propose_edits.`,
+			});
+			return;
+		}
+		let after: LetterHeader;
+		try {
+			after = applyPatchTo(header, change.operations);
+		} catch (error) {
+			skipped.push({ index, reason: error instanceof Error ? error.message.slice(0, 300) : String(error) });
+			return;
+		}
+		const changes = change.operations.map((op) => {
+			const field = op.path.slice(1) as keyof LetterHeader;
+			return {
+				path: op.path,
+				label: `Letter · ${LETTER_LABELS[field] ?? field}`,
+				before: displayValue(header[field]),
+				after: displayValue(after[field]),
+			};
+		});
+		const first = changes[0];
+		const firstOp = change.operations[0];
+		if (!first || !firstOp || JSON.stringify(after) === JSON.stringify(header)) {
+			skipped.push({ index, reason: "The change doesn't change anything." });
+			return;
+		}
+		proposals.push({
+			id: generateId(),
+			kind: "patch",
+			target: { sectionId: "letter", field: firstOp.path.slice(1) },
+			location: first.label,
+			before: first.before,
+			after: first.after,
+			why: change.why,
+			status: "pending",
+			operations: withPreconditions(header, change.operations),
+			changes,
+		});
+	});
+
+	return { title: input.title, proposals, skipped };
 }

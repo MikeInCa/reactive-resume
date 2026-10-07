@@ -9,7 +9,7 @@ vi.mock("@reactive-resume/db/client", () => ({ db: dbMock }));
 vi.mock("../resume/service", () => ({ resumeService: {} }));
 vi.mock("../cover-letters/service", () => ({ coverLetterService: {} }));
 
-const { findPosting, resolveEdits } = await import("./document");
+const { documentView, findPosting, resolveChanges, resolveEdits } = await import("./document");
 
 function makeDocument() {
 	const data = structuredClone(defaultResumeData);
@@ -45,6 +45,7 @@ function makeDocument() {
 			locked: false,
 			applicationId: null,
 			passages,
+			data,
 			read: (target: Parameters<typeof readTarget>[1]) => readTarget(data, target),
 			view: {},
 		},
@@ -120,5 +121,75 @@ describe("agent documents", () => {
 			{ before: "<li><p>Built the design system</p></li>", after: "", status: "pending" },
 		]);
 		expect(output.skipped.map((skip) => skip.passageId)).toEqual([summary.id]);
+	});
+
+	it("exposes a fields view with addresses in the read tool result", () => {
+		const { document } = makeDocument();
+		const view = documentView(document) as {
+			data: { fields: { basics: { path: string }; sections: Array<{ id: string; items: Array<{ path: string }> }> } };
+		};
+		expect(view.data.fields.basics.path).toBe("/basics");
+		expect(view.data.fields.sections.find((s) => s.id === "experience")?.items[0]?.path).toBe(
+			"/sections/experience/items/0",
+		);
+	});
+
+	it("resolves field changes into patch proposals with preconditions and skips the rest with reasons", () => {
+		const { document, data } = makeDocument();
+		const output = resolveChanges(document, {
+			title: "Tailor",
+			changes: [
+				{
+					why: "Posting title.",
+					operations: [{ op: "replace", path: "/experience/items/0/position", value: "Lead Designer" }],
+				},
+				{ why: "Nope.", operations: [{ op: "replace", path: "/metadata/template", value: "x" }] },
+				{ why: "Same.", operations: [{ op: "replace", path: "/basics/name", value: data.basics.name }] },
+			],
+		});
+		expect(output.proposals).toHaveLength(1);
+		expect(output.proposals[0]).toMatchObject({
+			kind: "patch",
+			status: "pending",
+			location: "Experience · Lumen Health · Position",
+			before: "Designer",
+			after: "Lead Designer",
+			target: { sectionId: "experience", itemId: "lumen", field: "position" },
+		});
+		expect(output.proposals[0]?.operations[0]).toEqual({
+			op: "test",
+			path: "/sections/experience/items/0/position",
+			value: "Designer",
+		});
+		expect(output.skipped.map((s) => s.index)).toEqual([1, 2]);
+	});
+
+	it("limits a letter to its header fields and describes them", () => {
+		const letter = {
+			kind: "letter" as const,
+			name: "Letter",
+			updatedAt: new Date(),
+			locked: false,
+			applicationId: null,
+			passages: [],
+			read: () => undefined,
+			view: {},
+			letter: { name: "Letter", recipient: "", recipientName: "Ms Doe", recipientCompany: "Lumen", letterDate: "" },
+		};
+		const output = resolveChanges(letter, {
+			title: "Fix",
+			changes: [
+				{ why: "Spelling.", operations: [{ op: "replace", path: "/recipientName", value: "Ms Dow" }] },
+				{ why: "Body.", operations: [{ op: "replace", path: "/content", value: "x" }] },
+			],
+		});
+		expect(output.proposals[0]).toMatchObject({
+			kind: "patch",
+			location: "Letter · Recipient name",
+			before: "Ms Doe",
+			after: "Ms Dow",
+			target: { sectionId: "letter", field: "recipientName" },
+		});
+		expect(output.skipped[0]?.reason).toMatch(/propose_edits|header/);
 	});
 });
