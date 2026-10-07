@@ -309,6 +309,11 @@ export function resolveChanges(document: LoadedDocument, input: ProposeChangesIn
 			});
 			return;
 		}
+		const notText = change.operations.find((op) => !("value" in op) || typeof op.value !== "string");
+		if (notText) {
+			skipped.push({ index, reason: `${notText.path}: letter header fields are text; send a string value.` });
+			return;
+		}
 		let after: LetterHeader;
 		try {
 			after = applyPatchTo(header, change.operations);

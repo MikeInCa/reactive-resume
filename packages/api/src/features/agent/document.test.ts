@@ -192,4 +192,30 @@ describe("agent documents", () => {
 		});
 		expect(output.skipped[0]?.reason).toMatch(/propose_edits|header/);
 	});
+
+	it("refuses a non-text value for a letter header field, with a reason", () => {
+		const letter = {
+			kind: "letter" as const,
+			name: "Letter",
+			updatedAt: new Date(),
+			locked: false,
+			applicationId: null,
+			passages: [],
+			read: () => undefined,
+			view: {},
+			letter: { name: "Letter", recipient: "", recipientName: "Ms Doe", recipientCompany: "Lumen", letterDate: "" },
+		};
+		const output = resolveChanges(letter, {
+			title: "Bad",
+			changes: [
+				{ why: "Null.", operations: [{ op: "replace", path: "/recipientName", value: null }] },
+				{ why: "Object.", operations: [{ op: "replace", path: "/recipientCompany", value: { a: 1 } }] },
+			],
+		});
+		expect(output.proposals).toEqual([]);
+		expect(output.skipped.map((skip) => skip.reason)).toEqual([
+			expect.stringMatching(/text/),
+			expect.stringMatching(/text/),
+		]);
+	});
 });
