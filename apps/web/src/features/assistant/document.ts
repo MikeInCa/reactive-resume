@@ -3,9 +3,7 @@ import { t } from "@lingui/core/macro";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
 import { useMemo } from "react";
-import { applyPatchTo } from "@reactive-resume/resume/patch-proposals";
 import {
-	applyTo,
 	collectLetterPassages,
 	collectPassages,
 	getPatchProposalState,
@@ -13,9 +11,9 @@ import {
 	getStateIn,
 	isPatchProposal,
 	locatePassage,
-	patchTestsPass,
 } from "@reactive-resume/resume/proposals";
 import { toast } from "@reactive-resume/ui/components/toast";
+import { applyLetterProposals, letterHeaderOf } from "./letter-proposals";
 import { applicationsListQueryOptions } from "@/features/applications/queries";
 import { useLetterEditorStore } from "@/features/letters/store";
 import { useCurrentResume } from "@/features/resume/builder/draft";
@@ -74,29 +72,6 @@ export function useResumeAssistantDocument(): AssistantDocument {
 	}, [resume.id, resume.name, resume.isLocked, resume.data, application]);
 }
 
-type LetterHeader = {
-	name: string;
-	recipient: string;
-	recipientName: string;
-	recipientCompany: string;
-	letterDate: string;
-};
-
-/** The letter fields a patch proposal may change, as the server addresses them (/recipientName, …). */
-const letterHeader = (letter: {
-	name: string;
-	recipient: string;
-	recipientName: string;
-	recipientCompany: string;
-	letterDate?: string | null;
-}): LetterHeader => ({
-	name: letter.name,
-	recipient: letter.recipient,
-	recipientName: letter.recipientName,
-	recipientCompany: letter.recipientCompany,
-	letterDate: letter.letterDate ?? "",
-});
-
 export function useLetterAssistantDocument(): AssistantDocument | null {
 	const letter = useLetterEditorStore((state) => state.letter);
 	const { applicationId } = useSearch({ strict: false });
@@ -115,38 +90,27 @@ export function useLetterAssistantDocument(): AssistantDocument | null {
 			posting: application ? { id: application.id, company: application.company, role: application.role } : null,
 			stateOf: (proposal) =>
 				isPatchProposal(proposal)
-					? getPatchProposalState(letterHeader(letter), proposal)
+					? getPatchProposalState(letterHeaderOf(letter), proposal)
 					: getStateIn(letter.content, proposal),
 			accept: (proposals) => {
 				const { letter: current, edit } = useLetterEditorStore.getState();
 				if (!current) return [];
 				const before = current.content;
-				const header = letterHeader(current);
-				const applied: Proposal[] = [];
-				let content = before;
-				let patched = header;
-				for (const proposal of proposals) {
-					if (isPatchProposal(proposal)) {
-						// A header change applies only while its preconditions hold; a stale one is left as it is.
-						if (!patchTestsPass(patched, proposal.operations ?? [])) continue;
-						patched = applyPatchTo(patched, proposal.operations ?? []);
-					} else {
-						const next = applyTo(content, proposal);
-						if (next === undefined) continue;
-						content = next;
-					}
-					applied.push(proposal);
-				}
-				if (applied.length === 0) {
+				const header = letterHeaderOf(current);
+				const result = applyLetterProposals(header, before, proposals);
+				if (result.applied.length === 0) {
 					toast.add({ description: t`Nothing could be applied: the text changed since.` });
-					return applied;
+					return result.applied;
 				}
-				edit({ content, ...patched });
+				// Only what changed is written, and Undo puts back only those fields.
+				const touched = Object.keys(result.header) as Array<keyof typeof result.header>;
+				const restore = Object.fromEntries(touched.map((key) => [key, header[key]]));
+				edit({ ...(result.content === before ? {} : { content: result.content }), ...result.header });
 				toast.add({
-					description: applied.length === 1 ? t`Edit applied` : t`${applied.length} edits applied`,
-					actionProps: { children: t`Undo`, onClick: () => edit({ content: before, ...header }) },
+					description: result.applied.length === 1 ? t`Edit applied` : t`${result.applied.length} edits applied`,
+					actionProps: { children: t`Undo`, onClick: () => edit({ content: before, ...restore }) },
 				});
-				return applied;
+				return result.applied;
 			},
 			locationOf: (proposal) => locatePassage(passages, proposal),
 		};

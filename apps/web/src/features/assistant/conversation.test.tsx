@@ -340,3 +340,87 @@ it("reports a card the batch could not apply, and leaves it unrecorded", async (
 	});
 	expect(screen.getByRole("button", { name: "Accept" })).toBeTruthy(); // the card is still pending, not Applied
 });
+
+it("scopes apply-all to what was proposed since the last answered apply-all question", async () => {
+	const accept = vi.fn((chosen: readonly Proposal[]) => chosen);
+	const stateOf = vi.fn(() => "pending" as const);
+	const card = (id: string) => ({
+		id,
+		kind: "patch",
+		target: { sectionId: "basics", field: "headline" },
+		location: "Basics · Headline",
+		before: "a",
+		after: id,
+		why: "w",
+		status: "pending",
+		operations: [{ op: "replace", path: "/basics/headline", value: id }],
+		changes: [{ path: "/basics/headline", label: "Basics · Headline", before: "a", after: id }],
+	});
+	const question = (toolCallId: string, answered: boolean) => ({
+		type: "tool-ask_user_question",
+		toolCallId,
+		state: answered ? "output-available" : "input-available",
+		input: { question: "Apply all 1 changes?", choices: ["Apply all 1", "Let me pick"], applyChanges: true },
+		...(answered ? { output: "Let me pick" } : {}),
+	});
+	mocks.chat.mockReturnValue({
+		messages: [
+			{
+				id: "a1",
+				role: "assistant",
+				parts: [
+					{
+						type: "tool-propose_changes",
+						toolCallId: "t1",
+						state: "output-available",
+						input: {},
+						output: { title: "T", proposals: [card("old")], skipped: [] },
+					},
+				],
+			},
+			{ id: "a2", role: "assistant", parts: [question("q1", true)] },
+			{ id: "u2", role: "user", parts: [{ type: "text", text: "now change it to new" }] },
+			{
+				id: "a3",
+				role: "assistant",
+				parts: [
+					{
+						type: "tool-propose_changes",
+						toolCallId: "t2",
+						state: "output-available",
+						input: {},
+						output: { title: "T2", proposals: [card("new")], skipped: [] },
+					},
+				],
+			},
+			{ id: "a4", role: "assistant", parts: [question("q2", false)] },
+		],
+		sendMessage: mocks.send,
+		status: "ready",
+		clearError: vi.fn(),
+		addToolOutput: mocks.addToolOutput,
+		regenerate: vi.fn(),
+		stop: vi.fn(),
+		error: undefined,
+	});
+	render(
+		<I18nProvider i18n={i18n}>
+			<Conversation
+				threadId="t"
+				initialMessages={[]}
+				activeRun={false}
+				document={{ ...document, accept, stateOf }}
+				readOnly={false}
+				providerLabel="Local"
+				prompt={null}
+				promptAttachments={[]}
+				initialContext={{ document: true, posting: true }}
+				onPromptSent={() => {}}
+				onSwitchModel={() => {}}
+			/>
+		</I18nProvider>,
+	);
+	fireEvent.click(screen.getByRole("button", { name: "Apply all 1" }));
+	await waitFor(() => expect(accept).toHaveBeenCalledOnce());
+	expect(accept.mock.calls[0]?.[0].map((proposal) => proposal.id)).toEqual(["new"]);
+});

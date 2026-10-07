@@ -147,7 +147,17 @@ export function Conversation(props: ConversationProps) {
 	const applyAll = () => {
 		let stale = 0;
 		const batches: Array<{ message: UIMessage; part: ToolPart; live: Proposal[] }> = [];
-		for (const message of messages) {
+		// Only what was proposed since the last apply-all the user already answered: an older set they left pending
+		// was their decision, not something a later "go ahead" should sweep up.
+		const lastAnswered = messages.findLastIndex((message) =>
+			message.parts.some(
+				(part) =>
+					part.type === "tool-ask_user_question" &&
+					(part as ToolPart).state === "output-available" &&
+					((part as ToolPart).input as { applyChanges?: unknown } | undefined)?.applyChanges === true,
+			),
+		);
+		for (const message of messages.slice(lastAnswered + 1)) {
 			for (const part of message.parts) {
 				if (!isProposalPart(part)) continue;
 				const pending = toProposals(part, statuses, document).filter((proposal) => proposal.status === "pending");
