@@ -33,8 +33,8 @@ export type AssistantDocument = {
 	posting: { id: string; company: string; role: string } | null;
 	/** A proposal's state against the document as it reads now. */
 	stateOf: (proposal: Proposal) => ProposalState;
-	/** Applies proposals as one undo step, with Undo in the toast. */
-	accept: (proposals: readonly Proposal[]) => void;
+	/** Applies proposals as one undo step, with Undo in the toast; returns the ones that applied. */
+	accept: (proposals: readonly Proposal[]) => readonly Proposal[];
 	/** Where a proposal lands, in the app's language, when its passage is still there. */
 	locationOf: (proposal: Pick<Proposal, "before" | "target">) => string | undefined;
 };
@@ -119,25 +119,34 @@ export function useLetterAssistantDocument(): AssistantDocument | null {
 					: getStateIn(letter.content, proposal),
 			accept: (proposals) => {
 				const { letter: current, edit } = useLetterEditorStore.getState();
-				if (!current) return;
+				if (!current) return [];
 				const before = current.content;
 				const header = letterHeader(current);
-				const content = proposals
-					.filter((proposal) => !isPatchProposal(proposal))
-					.reduce((value, proposal) => applyTo(value, proposal) ?? value, before);
-				// Header changes apply only while their preconditions hold; a stale one is left as it is.
-				const patched = proposals
-					.filter(isPatchProposal)
-					.reduce(
-						(value, proposal) =>
-							patchTestsPass(value, proposal.operations ?? []) ? applyPatchTo(value, proposal.operations ?? []) : value,
-						header,
-					);
+				const applied: Proposal[] = [];
+				let content = before;
+				let patched = header;
+				for (const proposal of proposals) {
+					if (isPatchProposal(proposal)) {
+						// A header change applies only while its preconditions hold; a stale one is left as it is.
+						if (!patchTestsPass(patched, proposal.operations ?? [])) continue;
+						patched = applyPatchTo(patched, proposal.operations ?? []);
+					} else {
+						const next = applyTo(content, proposal);
+						if (next === undefined) continue;
+						content = next;
+					}
+					applied.push(proposal);
+				}
+				if (applied.length === 0) {
+					toast.add({ description: t`Nothing could be applied: the text changed since.` });
+					return applied;
+				}
 				edit({ content, ...patched });
 				toast.add({
-					description: proposals.length === 1 ? t`Edit applied` : t`${proposals.length} edits applied`,
+					description: applied.length === 1 ? t`Edit applied` : t`${applied.length} edits applied`,
 					actionProps: { children: t`Undo`, onClick: () => edit({ content: before, ...header }) },
 				});
+				return applied;
 			},
 			locationOf: (proposal) => locatePassage(passages, proposal),
 		};

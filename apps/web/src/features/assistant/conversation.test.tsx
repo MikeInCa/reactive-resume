@@ -1,5 +1,6 @@
 // @vitest-environment happy-dom
 import type { AssistantDocument } from "./document";
+import type { Proposal } from "@reactive-resume/resume/proposals";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { i18n } from "@lingui/core";
@@ -42,7 +43,7 @@ const document: AssistantDocument = {
 	locked: false,
 	posting: { id: "application-2", company: "Selected Company", role: "Engineer" },
 	stateOf: () => "pending",
-	accept: () => {},
+	accept: () => [],
 	locationOf: () => undefined,
 };
 beforeEach(() => {
@@ -181,7 +182,7 @@ it("reopens native and custom web results with sources, clipping and failed or u
 });
 
 it("renders propose_changes cards and applies every pending card from the apply-all question's first choice", async () => {
-	const accept = vi.fn();
+	const accept = vi.fn((chosen: readonly Proposal[]) => chosen);
 	const stateOf = vi.fn(() => "pending" as const);
 	const proposals = [
 		{
@@ -258,4 +259,84 @@ it("renders propose_changes cards and applies every pending card from the apply-
 		toolCallId: "q1",
 		output: "Apply all 1 — applied 1 change; 0 were out of date.",
 	});
+});
+
+it("reports a card the batch could not apply, and leaves it unrecorded", async () => {
+	const accept = vi.fn(() => []); // nothing applied (its precondition failed inside the batch)
+	const stateOf = vi.fn(() => "pending" as const);
+	const proposals = [
+		{
+			id: "c1",
+			kind: "patch",
+			target: { sectionId: "basics", field: "headline" },
+			location: "Basics · Headline",
+			before: "a",
+			after: "b",
+			why: "w",
+			status: "pending",
+			operations: [{ op: "replace", path: "/basics/headline", value: "b" }],
+			changes: [{ path: "/basics/headline", label: "Basics · Headline", before: "a", after: "b" }],
+		},
+	];
+	mocks.chat.mockReturnValue({
+		messages: [
+			{
+				id: "a1",
+				role: "assistant",
+				parts: [
+					{
+						type: "tool-propose_changes",
+						toolCallId: "t1",
+						state: "output-available",
+						input: {},
+						output: { title: "T", proposals, skipped: [] },
+					},
+				],
+			},
+			{
+				id: "a2",
+				role: "assistant",
+				parts: [
+					{
+						type: "tool-ask_user_question",
+						toolCallId: "q1",
+						state: "input-available",
+						input: { question: "Apply all 1 changes?", choices: ["Apply all 1", "Let me pick"], applyChanges: true },
+					},
+				],
+			},
+		],
+		sendMessage: mocks.send,
+		status: "ready",
+		clearError: vi.fn(),
+		addToolOutput: mocks.addToolOutput,
+		regenerate: vi.fn(),
+		stop: vi.fn(),
+		error: undefined,
+	});
+	render(
+		<I18nProvider i18n={i18n}>
+			<Conversation
+				threadId="t"
+				initialMessages={[]}
+				activeRun={false}
+				document={{ ...document, accept, stateOf }}
+				readOnly={false}
+				providerLabel="Local"
+				prompt={null}
+				promptAttachments={[]}
+				initialContext={{ document: true, posting: true }}
+				onPromptSent={() => {}}
+				onSwitchModel={() => {}}
+			/>
+		</I18nProvider>,
+	);
+	fireEvent.click(screen.getByRole("button", { name: "Apply all 1" }));
+	await waitFor(() => expect(accept).toHaveBeenCalledOnce());
+	expect(mocks.addToolOutput).toHaveBeenCalledWith({
+		tool: "ask_user_question",
+		toolCallId: "q1",
+		output: "Apply all 1 — applied 0 changes; 0 were out of date; 1 could not be applied.",
+	});
+	expect(screen.getByRole("button", { name: "Accept" })).toBeTruthy(); // the card is still pending, not Applied
 });

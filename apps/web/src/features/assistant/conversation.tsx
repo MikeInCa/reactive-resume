@@ -146,21 +146,26 @@ export function Conversation(props: ConversationProps) {
 	/** The apply-all question's first choice: every pending card in the thread, applied as one undo step. */
 	const applyAll = () => {
 		let stale = 0;
-		const chosen: Proposal[] = [];
+		const batches: Array<{ message: UIMessage; part: ToolPart; live: Proposal[] }> = [];
 		for (const message of messages) {
 			for (const part of message.parts) {
 				if (!isProposalPart(part)) continue;
 				const pending = toProposals(part, statuses, document).filter((proposal) => proposal.status === "pending");
 				const live = pending.filter((proposal) => document.stateOf(proposal) === "pending");
 				stale += pending.length - live.length;
-				if (live.length > 0) {
-					chosen.push(...live);
-					record(message, part, live, "accepted");
-				}
+				if (live.length > 0) batches.push({ message, part, live });
 			}
 		}
-		if (chosen.length > 0) document.accept(chosen);
-		return { applied: chosen.length, stale };
+		const chosen = batches.flatMap((batch) => batch.live);
+		// One undo step for the whole set; only what actually applied is recorded as accepted (an earlier change in
+		// the batch can invalidate a later one's preconditions).
+		const applied = chosen.length > 0 ? document.accept(chosen) : [];
+		const appliedIds = new Set(applied.map((proposal) => proposal.id));
+		for (const batch of batches) {
+			const done = batch.live.filter((proposal) => appliedIds.has(proposal.id));
+			if (done.length > 0) record(batch.message, batch.part, done, "accepted");
+		}
+		return { applied: applied.length, stale, failed: chosen.length - applied.length };
 	};
 
 	// Undoing an accepted edit makes it pending again.
@@ -335,7 +340,7 @@ type MessageViewProps = {
 	statuses: ReadonlyMap<string, EditStatus>;
 	document: AssistantDocument;
 	onAnswer: (toolCallId: string, answer: string) => void;
-	onApplyAll: () => { applied: number; stale: number };
+	onApplyAll: () => { applied: number; stale: number; failed: number };
 	onRecord: (message: UIMessage, part: ToolPart, proposals: readonly Proposal[], status: EditStatus) => void;
 };
 
@@ -544,8 +549,8 @@ function ToolPartView({
 								)
 							}
 							onAccept={(chosen) => {
-								document.accept(chosen);
-								onRecord(message, part, chosen, "accepted");
+								const applied = document.accept(chosen);
+								if (applied.length > 0) onRecord(message, part, applied, "accepted");
 							}}
 							onReject={(chosen) => onRecord(message, part, chosen, "rejected")}
 						/>
@@ -583,7 +588,7 @@ type QuestionCardProps = {
 	part: ToolPart;
 	readOnly: boolean;
 	onAnswer: (toolCallId: string, answer: string) => void;
-	onApplyAll: () => { applied: number; stale: number };
+	onApplyAll: () => { applied: number; stale: number; failed: number };
 };
 
 /** The assistant asks before writing anything the document doesn't say: an info-soft card with its choices. */
@@ -618,9 +623,14 @@ function QuestionCard({ part, readOnly, onAnswer, onApplyAll }: QuestionCardProp
 									variant={applies && index === 0 ? "primary" : "secondary"}
 									onClick={() => {
 										if (applies && index === 0) {
-											const { applied, stale } = onApplyAll();
+											const { applied, stale, failed } = onApplyAll();
 											const count = plural(applied, { one: "# change", other: "# changes" });
-											onAnswer(toolCallId, t`${choice} — applied ${count}; ${stale} were out of date.`);
+											onAnswer(
+												toolCallId,
+												failed > 0
+													? t`${choice} — applied ${count}; ${stale} were out of date; ${failed} could not be applied.`
+													: t`${choice} — applied ${count}; ${stale} were out of date.`,
+											);
 											return;
 										}
 										onAnswer(toolCallId, choice);

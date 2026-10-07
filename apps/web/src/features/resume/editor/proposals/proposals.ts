@@ -1,5 +1,6 @@
 import type { Proposal } from "@reactive-resume/resume/proposals";
 import type { ResumeData } from "@reactive-resume/schema/resume/data";
+import type { WritableDraft } from "immer";
 import { t } from "@lingui/core/macro";
 import { produce } from "immer";
 import {
@@ -75,16 +76,32 @@ export function markProposals(data: ResumeData, proposals: readonly Proposal[]):
 	});
 }
 
-/** Applies proposals to the resume as one undo step; the toast's Undo takes them back, and they show as pending again. */
-export function acceptResumeProposals(proposals: readonly Proposal[]) {
+/**
+ * Applies proposals to a draft in order and returns the ones that applied. A later proposal's preconditions can be
+ * invalidated by an earlier one in the same batch (a move shifts the index a rename tests); that one applies nothing
+ * and is left out, so it keeps reading as pending or out of date instead of "Applied".
+ */
+export function applyProposalsToDraft(draft: WritableDraft<ResumeData>, proposals: readonly Proposal[]): Proposal[] {
+	return proposals.filter((proposal) => applyProposal(draft, proposal));
+}
+
+/**
+ * Applies proposals to the resume as one undo step and returns the ones that applied; the toast's Undo takes them
+ * back, and they show as pending again.
+ */
+export function acceptResumeProposals(proposals: readonly Proposal[]): Proposal[] {
+	let applied: Proposal[] = [];
 	useResumeStore.getState().updateResumeData(
 		(draft) => {
-			for (const proposal of proposals) applyProposal(draft, proposal);
+			applied = applyProposalsToDraft(draft, proposals);
 		},
 		{ newStep: true },
 	);
-	toast.add({
-		description: proposals.length === 1 ? t`Edit applied` : t`${proposals.length} edits applied`,
-		actionProps: { children: t`Undo`, onClick: () => useResumeStore.getState().undo() },
-	});
+	if (applied.length > 0)
+		toast.add({
+			description: applied.length === 1 ? t`Edit applied` : t`${applied.length} edits applied`,
+			actionProps: { children: t`Undo`, onClick: () => useResumeStore.getState().undo() },
+		});
+	else toast.add({ description: t`Nothing could be applied: the text changed since.` });
+	return applied;
 }

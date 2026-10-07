@@ -10,7 +10,7 @@ import {
 	replaceBlockText,
 } from "@reactive-resume/resume/proposals";
 import { defaultResumeData } from "@reactive-resume/schema/resume/default";
-import { markProposals, pendingProposals } from "./proposals";
+import { applyProposalsToDraft, markProposals, pendingProposals } from "./proposals";
 
 const OLD_BULLET = "<li><p>Responsible for various design tasks</p></li>";
 
@@ -134,5 +134,44 @@ describe("proposals", () => {
 			expect(applyProposal(draft, patch)).toBe(true);
 		});
 		expect(next.sections.experience.items[0]?.position).toBe("Product Designer");
+	});
+
+	it("applies a batch in order and returns only the proposals that actually applied", () => {
+		const data = makeData();
+		const [kettle] = data.sections.experience.items;
+		if (!kettle) throw new Error("fixture");
+		data.sections.experience.items = [kettle, { ...kettle, id: "second", company: "Second Co", position: "Dev" }];
+		const move = proposal({
+			id: "m",
+			kind: "patch",
+			target: { sectionId: "experience", field: "items" },
+			location: "Experience",
+			before: "",
+			after: "Move",
+			operations: [
+				{ op: "test", path: "/sections/experience/items/1", value: data.sections.experience.items[1] },
+				{ op: "move", from: "/sections/experience/items/1", path: "/sections/experience/items/0" },
+			],
+			changes: [],
+		});
+		const rename = proposal({
+			id: "r",
+			kind: "patch",
+			target: { sectionId: "experience", itemId: "kettle", field: "position" },
+			location: "Experience · Studio Kettle · Position",
+			before: "Junior Designer",
+			after: "Product Designer",
+			operations: [
+				{ op: "test", path: "/sections/experience/items/0/position", value: "Junior Designer" },
+				{ op: "replace", path: "/sections/experience/items/0/position", value: "Product Designer" },
+			],
+			changes: [],
+		});
+		let applied: readonly Proposal[] = [];
+		const next = produce(data, (draft) => {
+			applied = applyProposalsToDraft(draft, [move, rename]);
+		});
+		expect(applied.map((p) => p.id)).toEqual(["m"]);
+		expect(next.sections.experience.items.map((item) => item.position)).toEqual(["Dev", "Junior Designer"]);
 	});
 });
