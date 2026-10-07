@@ -80,8 +80,11 @@ export const canApply = (data: ResumeData, proposal: Proposal) =>
  */
 export function getStateIn(value: string, proposal: Proposal): ProposalState {
 	if (proposal.status === "rejected") return "rejected";
-	if (proposal.status === "accepted")
-		return canApplyTo(value, proposal) && !value.includes(proposal.after) ? "pending" : "accepted";
+	if (proposal.status === "accepted") {
+		// A removal has no new text to look for: it's undone whenever the passage is back.
+		const undone = proposal.after === "" || !value.includes(proposal.after);
+		return canApplyTo(value, proposal) && undone ? "pending" : "accepted";
+	}
 	return canApplyTo(value, proposal) ? "pending" : "stale";
 }
 
@@ -139,6 +142,35 @@ export function additionAfter(value: string, passageHtml: string, text: string) 
 	return { before, after: `${before}<li>${block}</li>` };
 }
 
+/**
+ * A passage's removal, as a replacement with nothing: a bullet goes with its list item, and the last bullet with
+ * its list, so no empty item or list is left behind. `undefined` when the passage is empty, gone or repeated.
+ */
+export function removalOf(value: string, passageHtml: string) {
+	if (!passageHtml || !canApplyTo(value, { before: passageHtml })) return undefined;
+	const index = value.indexOf(passageHtml);
+	if (index < 0) return undefined;
+
+	let start = index;
+	let end = index + passageHtml.length;
+	const item = /<li(?:\s[^>]*)?>\s*$/i.exec(value.slice(0, start));
+	const closing = /^\s*<\/li>/i.exec(value.slice(end));
+	if (item && closing) {
+		start -= item[0].length;
+		end += closing[0].length;
+		// The only item left: take the list too.
+		const list = /<(ul|ol)(?:\s[^>]*)?>\s*$/i.exec(value.slice(0, start));
+		const listClosing = list ? new RegExp(String.raw`^\s*</${list[1]}>`, "i").exec(value.slice(end)) : null;
+		if (list && listClosing) {
+			start -= list[0].length;
+			end += listClosing[0].length;
+		}
+	}
+
+	const before = value.slice(start, end);
+	return canApplyTo(value, { before }) ? { before, after: "" } : undefined;
+}
+
 // A paragraph or list item with no paragraph or list item inside it: `<li><p>…</p></li>` yields the `<p>`.
 const LEAF_BLOCK = /<(p|li)(?:\s[^>]*)?>((?:(?!<\/?(?:p|li)[\s>])[\s\S])*?)<\/\1>/gi;
 
@@ -188,6 +220,26 @@ export type Passage = {
 	html: string;
 	text: string;
 };
+
+/**
+ * Where a proposal lands, when its passage is still there: the passage a rewrite replaces, the one an addition
+ * follows, or the one a removal takes (with its list item). `undefined` when the passage is gone or repeated.
+ */
+export function locatePassage(
+	passages: readonly Passage[],
+	{ before, target }: { before: string; target: ProposalTarget },
+): string | undefined {
+	const matches = passages.filter(
+		(passage) =>
+			passage.target.sectionId === target.sectionId &&
+			passage.target.itemId === target.itemId &&
+			passage.target.roleId === target.roleId &&
+			passage.target.field === target.field &&
+			passage.html &&
+			before.includes(passage.html),
+	);
+	return matches.length === 1 ? matches[0]?.location : undefined;
+}
 
 export type PassageLabels = {
 	/** Also list an empty (visible) summary or letter body, so something can be written into it. */

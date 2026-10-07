@@ -102,4 +102,23 @@ describe("agent documents", () => {
 		expect(output.edits[0]?.location).toBe("Experience · Lumen Health · bullet 1");
 		expect(output.skipped.map((skip) => skip.passageId)).toEqual(["p_gone", first.id]);
 	});
+
+	it("places a removal with its list item, and skips removing an empty passage", () => {
+		const { document, passages } = makeDocument();
+		const [summary, first] = passages;
+		if (!summary || !first) throw new Error("Expected passages");
+
+		const output = resolveEdits(document, {
+			title: "Trim",
+			edits: [
+				{ passageId: first.id, why: "Repeats the second bullet.", remove: true },
+				{ passageId: summary.id, why: "Nothing there.", remove: true },
+			],
+		});
+
+		expect(output.edits.map(({ before, after, status }) => ({ before, after, status }))).toEqual([
+			{ before: "<li><p>Built the design system</p></li>", after: "", status: "pending" },
+		]);
+		expect(output.skipped.map((skip) => skip.passageId)).toEqual([summary.id]);
+	});
 });

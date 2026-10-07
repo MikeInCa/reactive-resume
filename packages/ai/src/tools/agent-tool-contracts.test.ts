@@ -1,6 +1,6 @@
 import type { UIMessage } from "ai";
 import { expect, it } from "vitest";
-import { agentWebSources } from "./agent-tool-contracts";
+import { agentWebSources, proposedEditInputSchema } from "./agent-tool-contracts";
 
 it("preserves deduplicated retrieved sources after serialization and ignores failed tools and invented links", () => {
 	const message: UIMessage = {
@@ -45,4 +45,16 @@ it("preserves deduplicated retrieved sources after serialization and ignores fai
 		{ url: "https://company.example/job", title: "Company job", kind: "native" },
 		{ url: "https://careers.example/role", title: "Role", kind: "search" },
 	]);
+});
+
+it("accepts a removal without text, and requires text otherwise", () => {
+	expect(proposedEditInputSchema.safeParse({ passageId: "p_1", why: "Repeats bullet 2.", remove: true }).success).toBe(
+		true,
+	);
+	expect(proposedEditInputSchema.safeParse({ passageId: "p_1", why: "Clearer." }).success).toBe(false);
+	expect(proposedEditInputSchema.safeParse({ passageId: "p_1", why: "Clearer.", text: "New" }).success).toBe(true);
+	// One edit does one thing.
+	expect(
+		proposedEditInputSchema.safeParse({ passageId: "p_1", why: "Both.", text: "New", remove: true, add: true }).success,
+	).toBe(false);
 });

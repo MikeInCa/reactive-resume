@@ -1,7 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { experienceItemSchema } from "@reactive-resume/schema/resume/data";
 import { defaultResumeData } from "@reactive-resume/schema/resume/default";
-import { additionAfter, applyProposal, applyTo, collectLetterPassages, collectPassages, readTarget } from "./proposals";
+import {
+	additionAfter,
+	applyProposal,
+	applyTo,
+	collectLetterPassages,
+	collectPassages,
+	getStateIn,
+	locatePassage,
+	readTarget,
+	removalOf,
+} from "./proposals";
 
 const labels = { body: "Letter", bullet: (n: number) => `bullet ${n}`, paragraph: (n: number) => `paragraph ${n}` };
 
@@ -107,5 +117,63 @@ describe("collectLetterPassages", () => {
 		expect(empty).toMatchObject({ html: "", text: "", location: "Letter" });
 		// Writing into it replaces the empty text.
 		expect(applyTo("", { before: "", after: "<p>Dear team</p>" })).toBe("<p>Dear team</p>");
+	});
+});
+
+describe("removalOf", () => {
+	it("removes a paragraph, leaving its neighbours", () => {
+		const value = "<p>One</p><p>Two</p><p>Three</p>";
+		const removal = removalOf(value, "<p>Two</p>");
+		expect(removal).toEqual({ before: "<p>Two</p>", after: "" });
+		expect(applyTo(value, removal ?? { before: "", after: "" })).toBe("<p>One</p><p>Three</p>");
+	});
+
+	it("removes a bullet with its list item, so no empty item is left", () => {
+		const value = "<ul><li><p>A</p></li><li><p>B</p></li><li><p>C</p></li></ul>";
+		const removal = removalOf(value, "<p>B</p>");
+		expect(removal).toEqual({ before: "<li><p>B</p></li>", after: "" });
+		expect(applyTo(value, removal ?? { before: "", after: "" })).toBe("<ul><li><p>A</p></li><li><p>C</p></li></ul>");
+	});
+
+	it("removes the last bullet with its list, so no empty list is left", () => {
+		const value = "<p>Intro</p><ul><li><p>Only</p></li></ul>";
+		const removal = removalOf(value, "<p>Only</p>");
+		expect(removal).toEqual({ before: "<ul><li><p>Only</p></li></ul>", after: "" });
+		expect(applyTo(value, removal ?? { before: "", after: "" })).toBe("<p>Intro</p>");
+	});
+
+	it("refuses a passage that is gone, repeated or empty", () => {
+		expect(removalOf("<p>One</p>", "<p>Gone</p>")).toBeUndefined();
+		expect(removalOf("<p>Same</p><p>Same</p>", "<p>Same</p>")).toBeUndefined();
+		expect(removalOf("", "")).toBeUndefined();
+	});
+});
+
+describe("getStateIn", () => {
+	it("shows an accepted removal as pending again once the passage is back", () => {
+		const removal = {
+			id: "r",
+			target: { sectionId: "summary", field: "content" },
+			location: "Summary",
+			before: "<p>Two</p>",
+			after: "",
+			why: "Redundant",
+			status: "accepted" as const,
+			source: "assistant" as const,
+		};
+		expect(getStateIn("<p>One</p>", removal)).toBe("accepted");
+		expect(getStateIn("<p>One</p><p>Two</p>", removal)).toBe("pending");
+	});
+});
+
+describe("locatePassage", () => {
+	it("finds where a rewrite, an addition and a removal land, and nothing for a repeated passage", () => {
+		const passages = collectLetterPassages("<ul><li><p>One</p></li><li><p>Two</p></li></ul><p>Two</p>", labels);
+		const target = { sectionId: "letter", field: "content" };
+		expect(locatePassage(passages, { before: "<p>One</p>", target })).toBe("Letter · bullet 1");
+		expect(locatePassage(passages, { before: "<p>One</p></li>", target })).toBe("Letter · bullet 1");
+		expect(locatePassage(passages, { before: "<li><p>One</p></li>", target })).toBe("Letter · bullet 1");
+		expect(locatePassage(passages, { before: "<p>Two</p>", target })).toBeUndefined();
+		expect(locatePassage(passages, { before: "<p>One</p>", target: { ...target, field: "other" } })).toBeUndefined();
 	});
 });

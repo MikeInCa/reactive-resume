@@ -89,4 +89,20 @@ describe("proposals", () => {
 		expect(readTarget(next, addition.target)).toContain("Introduced monthly accessibility reviews</p></li><li>");
 		expect(getProposalState(next, { ...addition, status: "accepted" })).toBe("accepted");
 	});
+
+	it("marks a removal as struck through only, and applies it as nothing", () => {
+		const removal = proposal({ before: OLD_BULLET, after: "" });
+		const data = makeData();
+		const marked = readTarget(markProposals(data, [removal]), removal.target) ?? "";
+		expect(marked).toContain('<li><p><s style="color: #7d7b73">Responsible for various design tasks</s></p></li>');
+		expect(marked).not.toContain("<mark");
+		const next = produce(data, (draft) => {
+			applyProposal(draft, removal);
+		});
+		expect(readTarget(next, removal.target)).toBe(
+			"<ul><li><p>Designed websites &amp; identities for 20+ businesses</p></li></ul>",
+		);
+		expect(getProposalState(next, { ...removal, status: "accepted" })).toBe("accepted");
+		expect(getProposalState(data, { ...removal, status: "accepted" })).toBe("pending");
+	});
 });

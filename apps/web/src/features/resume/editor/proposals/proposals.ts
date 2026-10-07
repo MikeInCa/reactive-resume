@@ -34,6 +34,13 @@ export function markChange(before: string, after: string) {
 		return `${before}${marked === added ? highlighted(added) : marked}`;
 	}
 
+	// A removal: the passage's blocks struck through, nothing added.
+	if (after === "")
+		return splitBlocks(before).reduce((html, block) => {
+			const parts = splitBlock(block.html);
+			return parts ? html.replace(block.html, () => `${parts.open}${struck(parts.inner)}${parts.close}`) : html;
+		}, before);
+
 	const old = splitBlock(before);
 	const next = splitBlock(after);
 	if (!old || !next) return `${struck(before)} ${highlighted(after)}`;

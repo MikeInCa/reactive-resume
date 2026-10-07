@@ -118,7 +118,7 @@ export function buildAgentTools(input: BuildAgentToolsInput): ToolSet {
 				}),
 				propose_edits: tool({
 					description:
-						"Propose edits to the open document for the user to accept or reject. Each edit rewrites one passage (by its id from the read tool), or adds a new passage after it. Nothing changes until the user accepts. Propose a request's edits together, in one call.",
+						"Propose edits to the open document for the user to accept or reject. Each edit rewrites one passage (by its id from the read tool), adds a new passage after it, or removes it (`remove: true`, no text). Nothing changes until the user accepts. Propose a request's edits together, in one call.",
 					inputSchema: proposeEditsInputSchema,
 					execute: input.handlers.proposeEdits,
 				}),

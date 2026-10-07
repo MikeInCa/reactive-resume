@@ -89,18 +89,25 @@ export function agentWebSources(message: UIMessage): AgentWebSource[] {
 	return [...sources.values()];
 }
 
-/** One edit: rewrite a passage of the document, or add a new passage after it. */
-export const proposedEditInputSchema = z.object({
-	passageId: z.string().trim().min(1).describe("The id of a passage from read_resume or read_letter."),
-	text: z
-		.string()
-		.trim()
-		.min(1)
-		.max(2_000)
-		.describe("The passage as it should read, in plain text: the rewrite, or the new passage to add."),
-	why: z.string().trim().min(1).max(240).describe("One short line on why."),
-	add: z.boolean().optional().describe("Add `text` as a new passage after this one, instead of replacing it."),
-});
+/** One edit: rewrite a passage of the document, add a new passage after it, or remove it. */
+export const proposedEditInputSchema = z
+	.object({
+		passageId: z.string().trim().min(1).describe("The id of a passage from read_resume or read_letter."),
+		text: z
+			.string()
+			.trim()
+			.min(1)
+			.max(2_000)
+			.optional()
+			.describe(
+				"The passage as it should read, in plain text: the rewrite, or the new passage to add. Omit when removing.",
+			),
+		why: z.string().trim().min(1).max(240).describe("One short line on why."),
+		add: z.boolean().optional().describe("Add `text` as a new passage after this one, instead of replacing it."),
+		remove: z.boolean().optional().describe("Remove this passage instead of rewriting it. Needs no `text`."),
+	})
+	.refine((edit) => edit.remove || edit.text !== undefined, { message: "`text` is required unless `remove` is true." })
+	.refine((edit) => !(edit.remove && edit.add), { message: "An edit either removes a passage or adds one, not both." });
 
 export const proposeEditsInputSchema = z.object({
 	title: z.string().trim().min(1).max(80).describe('What the edits do together, e.g. "Tailor to the Lumen posting".'),

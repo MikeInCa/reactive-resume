@@ -1,4 +1,4 @@
-import type { Passage, Proposal, ProposalState } from "@reactive-resume/resume/proposals";
+import type { Proposal, ProposalState } from "@reactive-resume/resume/proposals";
 import { t } from "@lingui/core/macro";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
@@ -9,6 +9,7 @@ import {
 	collectPassages,
 	getProposalState,
 	getStateIn,
+	locatePassage,
 } from "@reactive-resume/resume/proposals";
 import { toast } from "@reactive-resume/ui/components/toast";
 import { applicationsListQueryOptions } from "@/features/applications/queries";
@@ -37,20 +38,6 @@ export type AssistantDocument = {
 const bullet = (n: number) => t`bullet ${n}`;
 const paragraph = (n: number) => t`paragraph ${n}`;
 
-/** Finds the passage a proposal replaces, or the one an addition follows. */
-function locate(passages: readonly Passage[], { before, target }: Pick<Proposal, "before" | "target">) {
-	const matches = passages.filter(
-		(passage) =>
-			passage.target.sectionId === target.sectionId &&
-			passage.target.itemId === target.itemId &&
-			passage.target.roleId === target.roleId &&
-			passage.target.field === target.field &&
-			passage.html &&
-			(before === passage.html || before.startsWith(passage.html)),
-	);
-	return matches.length === 1 ? matches[0]?.location : undefined;
-}
-
 export function useResumeAssistantDocument(): AssistantDocument {
 	const resume = useCurrentResume();
 	const { applicationId } = useSearch({ strict: false });
@@ -78,7 +65,7 @@ export function useResumeAssistantDocument(): AssistantDocument {
 			posting: application ? { id: application.id, company: application.company, role: application.role } : null,
 			stateOf: (proposal) => getProposalState(resume.data, proposal),
 			accept: acceptResumeProposals,
-			locationOf: (proposal) => locate(passages, proposal),
+			locationOf: (proposal) => locatePassage(passages, proposal),
 		};
 	}, [resume.id, resume.name, resume.isLocked, resume.data, application]);
 }
@@ -111,7 +98,7 @@ export function useLetterAssistantDocument(): AssistantDocument | null {
 					actionProps: { children: t`Undo`, onClick: () => edit({ content: before }) },
 				});
 			},
-			locationOf: (proposal) => locate(passages, proposal),
+			locationOf: (proposal) => locatePassage(passages, proposal),
 		};
 	}, [letter, application]);
 }

@@ -12,6 +12,7 @@ import {
 	collectLetterPassages,
 	collectPassages,
 	readTarget,
+	removalOf,
 	replaceBlockText,
 } from "@reactive-resume/resume/proposals";
 import { generateId } from "@reactive-resume/utils/string";
@@ -189,9 +190,15 @@ export function resolveEdits(document: LoadedDocument, input: ProposeEditsInput)
 			continue;
 		}
 
-		const placed = edit.add
-			? additionAfter(document.read(passage.target) ?? "", passage.html, edit.text)
-			: { before: passage.html, after: replaceBlockText(passage.html, edit.text) };
+		if (edit.remove && !passage.html) {
+			skipped.push({ passageId: edit.passageId, reason: "This passage is empty: there is nothing to remove." });
+			continue;
+		}
+		const placed = edit.remove
+			? removalOf(document.read(passage.target) ?? "", passage.html)
+			: edit.add
+				? additionAfter(document.read(passage.target) ?? "", passage.html, edit.text ?? "")
+				: { before: passage.html, after: replaceBlockText(passage.html, edit.text ?? "") };
 		if (!placed || placed.after === placed.before) {
 			skipped.push({ passageId: edit.passageId, reason: "The edit doesn't change the passage." });
 			continue;
