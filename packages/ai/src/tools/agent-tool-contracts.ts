@@ -3,11 +3,18 @@
 // runtime-universal (consumed by both the API tool definitions and the web chat UI).
 import type { UIDataTypes, UIMessage } from "ai";
 import z from "zod";
+import { jsonPatchOperationSchema } from "@reactive-resume/resume/patch";
 
 export const askUserQuestionInputSchema = z.object({
 	question: z.string().trim().min(1),
 	choices: z.array(z.string().trim().min(1)).min(1).max(4).optional(),
 	recommendedChoice: z.string().trim().optional(),
+	applyChanges: z
+		.boolean()
+		.optional()
+		.describe(
+			"Make the FIRST choice apply every pending proposed change in this conversation. Only after the user asked to go ahead.",
+		),
 });
 
 export const searchWebInputSchema = z.object({
@@ -139,6 +146,53 @@ export const proposeEditsOutputSchema = z.looseObject({
 	skipped: z.array(z.object({ passageId: z.string(), reason: z.string() })),
 });
 
+/** One change to any content field: JSON Patch operations, resolved and described by the server. */
+export const proposedChangeInputSchema = z.object({
+	why: z.string().trim().min(1).max(240).describe("One short line on why."),
+	operations: z
+		.array(jsonPatchOperationSchema)
+		.min(1)
+		.max(20)
+		.describe(
+			"JSON Patch (RFC 6902) operations rooted at the resume data, e.g. replace /sections/experience/items/0/position.",
+		),
+});
+
+export const proposeChangesInputSchema = z.object({
+	title: z.string().trim().min(1).max(80).describe('What the changes do together, e.g. "Match the posting\'s titles".'),
+	changes: z.array(proposedChangeInputSchema).min(1).max(12),
+});
+
+export const proposalChangeRowSchema = z.object({
+	path: z.string(),
+	label: z.string(),
+	before: z.string(),
+	after: z.string(),
+});
+
+export const patchProposalSchema = proposedEditSchema.extend({
+	kind: z.literal("patch"),
+	operations: z.array(jsonPatchOperationSchema),
+	changes: z.array(proposalChangeRowSchema),
+});
+
+export const proposeChangesOutputSchema = z.looseObject({
+	title: z.string(),
+	proposals: z.array(patchProposalSchema),
+	/** Changes that couldn't be placed, by their index in the call, with a reason the model can act on. */
+	skipped: z.array(z.object({ index: z.number(), reason: z.string() })),
+});
+
+export const readSchemaInputSchema = z.object({
+	section: z
+		.string()
+		.trim()
+		.min(1)
+		.describe(
+			"A section type: experience, education, projects, skills, languages, interests, awards, certifications, publications, volunteer, references, profiles, summary.",
+		),
+});
+
 // All-optional and loose: legacy rows have no metadata and must keep rendering.
 // The usage shape mirrors the AI SDK's LanguageModelUsage (nested token details).
 export const agentMessageMetadataSchema = z
@@ -172,6 +226,10 @@ export type AskUserQuestionInput = z.infer<typeof askUserQuestionInputSchema>;
 export type ProposeEditsInput = z.infer<typeof proposeEditsInputSchema>;
 export type ProposedEdit = z.infer<typeof proposedEditSchema>;
 export type ProposeEditsOutput = z.infer<typeof proposeEditsOutputSchema>;
+export type ProposeChangesInput = z.infer<typeof proposeChangesInputSchema>;
+export type ProposeChangesOutput = z.infer<typeof proposeChangesOutputSchema>;
+export type PatchProposal = z.infer<typeof patchProposalSchema>;
+export type ReadSchemaInput = z.infer<typeof readSchemaInputSchema>;
 export type AgentMessageMetadata = z.infer<typeof agentMessageMetadataSchema>;
 
 export type AgentTools = {
@@ -180,6 +238,8 @@ export type AgentTools = {
 	read_letter: { input: Record<string, never>; output: unknown };
 	read_attachment: { input: { attachmentId: string }; output: unknown };
 	propose_edits: { input: ProposeEditsInput; output: ProposeEditsOutput };
+	propose_changes: { input: ProposeChangesInput; output: ProposeChangesOutput };
+	read_schema: { input: ReadSchemaInput; output: unknown };
 	search_web: {
 		input: z.infer<typeof searchWebInputSchema>;
 		output: SearchWebOutput;

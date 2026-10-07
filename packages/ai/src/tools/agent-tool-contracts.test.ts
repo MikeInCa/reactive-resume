@@ -1,6 +1,12 @@
 import type { UIMessage } from "ai";
 import { expect, it } from "vitest";
-import { agentWebSources, proposedEditInputSchema } from "./agent-tool-contracts";
+import {
+	agentWebSources,
+	askUserQuestionInputSchema,
+	proposeChangesInputSchema,
+	proposeChangesOutputSchema,
+	proposedEditInputSchema,
+} from "./agent-tool-contracts";
 
 it("preserves deduplicated retrieved sources after serialization and ignores failed tools and invented links", () => {
 	const message: UIMessage = {
@@ -57,4 +63,47 @@ it("accepts a removal without text, and requires text otherwise", () => {
 	expect(
 		proposedEditInputSchema.safeParse({ passageId: "p_1", why: "Both.", text: "New", remove: true, add: true }).success,
 	).toBe(false);
+});
+
+it("accepts a propose_changes call, bounds it, and an apply-all question", () => {
+	expect(
+		proposeChangesInputSchema.safeParse({
+			title: "Tailor",
+			changes: [{ why: "Posting title.", operations: [{ op: "replace", path: "/basics/headline", value: "PM" }] }],
+		}).success,
+	).toBe(true);
+	expect(proposeChangesInputSchema.safeParse({ title: "x", changes: [] }).success).toBe(false);
+	expect(
+		proposeChangesInputSchema.safeParse({
+			title: "x",
+			changes: [{ why: "y", operations: [{ op: "replace", path: "/a" }] }],
+		}).success,
+	).toBe(false);
+	expect(
+		proposeChangesOutputSchema.safeParse({
+			title: "Tailor",
+			proposals: [
+				{
+					id: "c1",
+					kind: "patch",
+					target: { sectionId: "basics", field: "headline" },
+					location: "Basics · Headline",
+					before: "a",
+					after: "b",
+					why: "w",
+					status: "pending",
+					operations: [{ op: "replace", path: "/basics/headline", value: "b" }],
+					changes: [{ path: "/basics/headline", label: "Basics · Headline", before: "a", after: "b" }],
+				},
+			],
+			skipped: [{ index: 1, reason: "nope" }],
+		}).success,
+	).toBe(true);
+	expect(
+		askUserQuestionInputSchema.safeParse({
+			question: "Apply all 3 changes?",
+			choices: ["Apply all 3", "Let me pick"],
+			applyChanges: true,
+		}).success,
+	).toBe(true);
 });
