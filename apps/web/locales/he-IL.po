@@ -6649,6 +6649,10 @@ msgstr "הסר תגית"
 msgid "Remove the password?"
 msgstr "להסיר את הסיסמה?"
 
+#: src/features/resume/editor/proposals/proposal-list.tsx
+msgid "Remove this passage"
+msgstr ""
+
 #: src/features/settings/account/security.tsx
 msgid "Remove this passkey?"
 msgstr "להסיר את המפתח הזה?"

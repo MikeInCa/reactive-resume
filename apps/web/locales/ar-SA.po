@@ -6649,6 +6649,10 @@ msgstr "إزالة الوسم"
 msgid "Remove the password?"
 msgstr "هل تريد إزالة كلمة المرور؟"
 
+#: src/features/resume/editor/proposals/proposal-list.tsx
+msgid "Remove this passage"
+msgstr ""
+
 #: src/features/settings/account/security.tsx
 msgid "Remove this passkey?"
 msgstr "هل تريد إزالة مفتاح المرور هذا؟"

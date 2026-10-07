@@ -6649,6 +6649,10 @@ msgstr "Hapus tag"
 msgid "Remove the password?"
 msgstr "Hapus kata sandi?"
 
+#: src/features/resume/editor/proposals/proposal-list.tsx
+msgid "Remove this passage"
+msgstr ""
+
 #: src/features/settings/account/security.tsx
 msgid "Remove this passkey?"
 msgstr "Hapus kunci sandi ini?"

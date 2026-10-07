@@ -6649,6 +6649,10 @@ msgstr "ట్యాగ్‌ను తీసివేయండి"
 msgid "Remove the password?"
 msgstr "పాస్‌వర్డ్‌ని తీసివేయాలా?"
 
+#: src/features/resume/editor/proposals/proposal-list.tsx
+msgid "Remove this passage"
+msgstr ""
+
 #: src/features/settings/account/security.tsx
 msgid "Remove this passkey?"
 msgstr "ఈ పాస్‌కీని తీసివేయాలా?"

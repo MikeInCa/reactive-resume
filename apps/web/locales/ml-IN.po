@@ -6649,6 +6649,10 @@ msgstr "ടാഗ് നീക്കംചെയ്യുക"
 msgid "Remove the password?"
 msgstr "പാസ്‌വേഡ് നീക്കം ചെയ്യണോ?"
 
+#: src/features/resume/editor/proposals/proposal-list.tsx
+msgid "Remove this passage"
+msgstr ""
+
 #: src/features/settings/account/security.tsx
 msgid "Remove this passkey?"
 msgstr "ഈ പാസ്‌കീ നീക്കം ചെയ്യണോ?"

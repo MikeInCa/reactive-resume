@@ -6649,6 +6649,10 @@ msgstr "Tegni olib tashlash"
 msgid "Remove the password?"
 msgstr "Parol olib tashlansinmi?"
 
+#: src/features/resume/editor/proposals/proposal-list.tsx
+msgid "Remove this passage"
+msgstr ""
+
 #: src/features/settings/account/security.tsx
 msgid "Remove this passkey?"
 msgstr "Bu kalit olib tashlansinmi?"

@@ -6649,6 +6649,10 @@ msgstr "குறிச்சொல்லை அகற்று"
 msgid "Remove the password?"
 msgstr "கடவுச்சொல்லை அகற்றவா?"
 
+#: src/features/resume/editor/proposals/proposal-list.tsx
+msgid "Remove this passage"
+msgstr ""
+
 #: src/features/settings/account/security.tsx
 msgid "Remove this passkey?"
 msgstr "இந்தக் கடவுச் சாவியை அகற்றவா?"

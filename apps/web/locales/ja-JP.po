@@ -6649,6 +6649,10 @@ msgstr "タグを削除"
 msgid "Remove the password?"
 msgstr "パスワードを削除しますか?"
 
+#: src/features/resume/editor/proposals/proposal-list.tsx
+msgid "Remove this passage"
+msgstr ""
+
 #: src/features/settings/account/security.tsx
 msgid "Remove this passkey?"
 msgstr "このパスキーを削除しますか?"

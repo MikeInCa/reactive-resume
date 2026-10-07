@@ -6649,6 +6649,10 @@ msgstr "ଟ୍ୟାଗ୍ ହଟାନ୍ତୁ"
 msgid "Remove the password?"
 msgstr "ପାସୱାର୍ଡ ହଟାନ୍ତୁ?"
 
+#: src/features/resume/editor/proposals/proposal-list.tsx
+msgid "Remove this passage"
+msgstr ""
+
 #: src/features/settings/account/security.tsx
 msgid "Remove this passkey?"
 msgstr "ଏହି ପାସ୍କି ହଟାନ୍ତୁ?"
