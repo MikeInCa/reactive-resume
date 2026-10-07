@@ -3,13 +3,17 @@ import { t } from "@lingui/core/macro";
 import { useQuery } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
 import { useMemo } from "react";
+import { applyPatchTo } from "@reactive-resume/resume/patch-proposals";
 import {
 	applyTo,
 	collectLetterPassages,
 	collectPassages,
+	getPatchProposalState,
 	getProposalState,
 	getStateIn,
+	isPatchProposal,
 	locatePassage,
+	patchTestsPass,
 } from "@reactive-resume/resume/proposals";
 import { toast } from "@reactive-resume/ui/components/toast";
 import { applicationsListQueryOptions } from "@/features/applications/queries";
@@ -70,6 +74,29 @@ export function useResumeAssistantDocument(): AssistantDocument {
 	}, [resume.id, resume.name, resume.isLocked, resume.data, application]);
 }
 
+type LetterHeader = {
+	name: string;
+	recipient: string;
+	recipientName: string;
+	recipientCompany: string;
+	letterDate: string;
+};
+
+/** The letter fields a patch proposal may change, as the server addresses them (/recipientName, …). */
+const letterHeader = (letter: {
+	name: string;
+	recipient: string;
+	recipientName: string;
+	recipientCompany: string;
+	letterDate?: string | null;
+}): LetterHeader => ({
+	name: letter.name,
+	recipient: letter.recipient,
+	recipientName: letter.recipientName,
+	recipientCompany: letter.recipientCompany,
+	letterDate: letter.letterDate ?? "",
+});
+
 export function useLetterAssistantDocument(): AssistantDocument | null {
 	const letter = useLetterEditorStore((state) => state.letter);
 	const { applicationId } = useSearch({ strict: false });
@@ -86,16 +113,30 @@ export function useLetterAssistantDocument(): AssistantDocument | null {
 			name: letter.name,
 			locked: letter.isLocked,
 			posting: application ? { id: application.id, company: application.company, role: application.role } : null,
-			stateOf: (proposal) => getStateIn(letter.content, proposal),
+			stateOf: (proposal) =>
+				isPatchProposal(proposal)
+					? getPatchProposalState(letterHeader(letter), proposal)
+					: getStateIn(letter.content, proposal),
 			accept: (proposals) => {
 				const { letter: current, edit } = useLetterEditorStore.getState();
 				if (!current) return;
 				const before = current.content;
-				const content = proposals.reduce((value, proposal) => applyTo(value, proposal) ?? value, before);
-				edit({ content });
+				const header = letterHeader(current);
+				const content = proposals
+					.filter((proposal) => !isPatchProposal(proposal))
+					.reduce((value, proposal) => applyTo(value, proposal) ?? value, before);
+				// Header changes apply only while their preconditions hold; a stale one is left as it is.
+				const patched = proposals
+					.filter(isPatchProposal)
+					.reduce(
+						(value, proposal) =>
+							patchTestsPass(value, proposal.operations ?? []) ? applyPatchTo(value, proposal.operations ?? []) : value,
+						header,
+					);
+				edit({ content, ...patched });
 				toast.add({
 					description: proposals.length === 1 ? t`Edit applied` : t`${proposals.length} edits applied`,
-					actionProps: { children: t`Undo`, onClick: () => edit({ content: before }) },
+					actionProps: { children: t`Undo`, onClick: () => edit({ content: before, ...header }) },
 				});
 			},
 			locationOf: (proposal) => locatePassage(passages, proposal),

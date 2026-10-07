@@ -1,11 +1,11 @@
 import type { ChatAttachment, MessageContext } from "./chat";
 import type { AssistantDocument } from "./document";
-import type { ProposeEditsOutput } from "@reactive-resume/ai/tools/agent-tool-contracts";
+import type { PatchProposal, ProposedEdit } from "@reactive-resume/ai/tools/agent-tool-contracts";
 import type { Proposal } from "@reactive-resume/resume/proposals";
 import type { IconName } from "@reactive-resume/ui/components/icon";
 import type { UIMessage } from "ai";
 import type { ReactNode } from "react";
-import { t } from "@lingui/core/macro";
+import { plural, t } from "@lingui/core/macro";
 import { Plural, Trans } from "@lingui/react/macro";
 import { useQueryClient } from "@tanstack/react-query";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
@@ -119,7 +119,7 @@ export function Conversation(props: ConversationProps) {
 	const proposals = useMemo(
 		() =>
 			messages.flatMap((message) =>
-				message.parts.flatMap((part) => (isProposeEdits(part) ? toProposals(part, statuses, document) : [])),
+				message.parts.flatMap((part) => (isProposalPart(part) ? toProposals(part, statuses, document) : [])),
 			),
 		[messages, statuses, document],
 	);
@@ -143,11 +143,31 @@ export function Conversation(props: ConversationProps) {
 
 	const recordUndone = useEffectEvent(record);
 
+	/** The apply-all question's first choice: every pending card in the thread, applied as one undo step. */
+	const applyAll = () => {
+		let stale = 0;
+		const chosen: Proposal[] = [];
+		for (const message of messages) {
+			for (const part of message.parts) {
+				if (!isProposalPart(part)) continue;
+				const pending = toProposals(part, statuses, document).filter((proposal) => proposal.status === "pending");
+				const live = pending.filter((proposal) => document.stateOf(proposal) === "pending");
+				stale += pending.length - live.length;
+				if (live.length > 0) {
+					chosen.push(...live);
+					record(message, part, live, "accepted");
+				}
+			}
+		}
+		if (chosen.length > 0) document.accept(chosen);
+		return { applied: chosen.length, stale };
+	};
+
 	// Undoing an accepted edit makes it pending again.
 	useEffect(() => {
 		for (const message of messages) {
 			for (const part of message.parts) {
-				if (!isProposeEdits(part)) continue;
+				if (!isProposalPart(part)) continue;
 				const undone = toProposals(part, statuses, document).filter(
 					(proposal) => proposal.status === "accepted" && document.stateOf(proposal) === "pending",
 				);
@@ -168,7 +188,7 @@ export function Conversation(props: ConversationProps) {
 	}, []);
 
 	const last = messages.at(-1);
-	const proposedInLast = last?.role === "assistant" && last.parts.some(isProposeEdits);
+	const proposedInLast = last?.role === "assistant" && last.parts.some(isProposalPart);
 
 	return (
 		<div className="flex min-h-0 flex-1 flex-col">
@@ -196,6 +216,7 @@ export function Conversation(props: ConversationProps) {
 							})
 						}
 						onRecord={record}
+						onApplyAll={applyAll}
 					/>
 				))}
 
@@ -272,16 +293,21 @@ export function Conversation(props: ConversationProps) {
 	);
 }
 
-const isProposeEdits = (part: Part): part is ToolPart =>
-	part.type === "tool-propose_edits" && (part as ToolPart).state === "output-available";
+// propose_edits (passages, under `edits`) and propose_changes (fields, under `proposals`) share the card model.
+const PROPOSAL_PART_TYPES = new Set(["tool-propose_edits", "tool-propose_changes"]);
+const isProposalPart = (part: Part): part is ToolPart =>
+	PROPOSAL_PART_TYPES.has(part.type) && (part as ToolPart).state === "output-available";
+
+type ProposalOutput = { edits?: ProposedEdit[]; proposals?: PatchProposal[]; skipped?: Array<{ reason?: string }> };
 
 function toProposals(
 	part: ToolPart,
 	statuses: ReadonlyMap<string, EditStatus>,
 	document: AssistantDocument,
 ): Proposal[] {
-	const output = part.output as ProposeEditsOutput | undefined;
-	return (output?.edits ?? []).map((edit) => {
+	const output = part.output as ProposalOutput | undefined;
+	const items: Array<ProposedEdit | PatchProposal> = output?.edits ?? output?.proposals ?? [];
+	return items.map((edit) => {
 		const target = {
 			sectionId: edit.target.sectionId,
 			field: edit.target.field,
@@ -291,7 +317,10 @@ function toProposals(
 		return {
 			...edit,
 			target,
-			location: document.locationOf({ ...edit, target }) ?? edit.location,
+			location:
+				"kind" in edit && edit.kind === "patch"
+					? edit.location
+					: (document.locationOf({ ...edit, target }) ?? edit.location),
 			status: statuses.get(edit.id) ?? edit.status,
 			source: "assistant",
 		};
@@ -306,6 +335,7 @@ type MessageViewProps = {
 	statuses: ReadonlyMap<string, EditStatus>;
 	document: AssistantDocument;
 	onAnswer: (toolCallId: string, answer: string) => void;
+	onApplyAll: () => { applied: number; stale: number };
 	onRecord: (message: UIMessage, part: ToolPart, proposals: readonly Proposal[], status: EditStatus) => void;
 };
 
@@ -317,6 +347,7 @@ function MessageView({
 	statuses,
 	document,
 	onAnswer,
+	onApplyAll,
 	onRecord,
 }: MessageViewProps) {
 	if (message.role === "user") {
@@ -361,6 +392,7 @@ function MessageView({
 						statuses={statuses}
 						document={document}
 						onAnswer={onAnswer}
+						onApplyAll={onApplyAll}
 						onRecord={onRecord}
 					/>
 				);
@@ -397,6 +429,7 @@ function ToolPartView({
 	statuses,
 	document,
 	onAnswer,
+	onApplyAll,
 	onRecord,
 }: ToolPartViewProps) {
 	const working = part.state === "input-streaming" || part.state === "input-available";
@@ -473,8 +506,9 @@ function ToolPartView({
 				</Status>
 			);
 		case "tool-ask_user_question":
-			return <QuestionCard part={part} readOnly={readOnly} onAnswer={onAnswer} />;
-		case "tool-propose_edits": {
+			return <QuestionCard part={part} readOnly={readOnly} onAnswer={onAnswer} onApplyAll={onApplyAll} />;
+		case "tool-propose_edits":
+		case "tool-propose_changes": {
 			if (part.state === "output-error")
 				return (
 					<p className="text-xs text-danger-text">
@@ -487,7 +521,8 @@ function ToolPartView({
 						<Trans>Preparing edits…</Trans>
 					</Status>
 				);
-			const output = part.output as ProposeEditsOutput;
+			const output = part.output as ProposalOutput;
+			const skipped = output.skipped ?? [];
 			const proposals = toProposals(part, statuses, document);
 			const states = proposals.map(document.stateOf);
 			const pending = states.filter((state) => state === "pending").length;
@@ -515,12 +550,12 @@ function ToolPartView({
 							onReject={(chosen) => onRecord(message, part, chosen, "rejected")}
 						/>
 					)}
-					{output.skipped.length > 0 && (
-						<p className="text-xs text-ink-3">
+					{skipped.length > 0 && (
+						<p className="text-xs text-ink-3" title={skipped.map((skip) => skip.reason ?? "").join("\n")}>
 							<Plural
-								value={output.skipped.length}
-								one="# edit couldn't be placed: its text changed. Ask again to redo it."
-								other="# edits couldn't be placed: their text changed. Ask again to redo them."
+								value={skipped.length}
+								one="# proposal couldn't be placed. Ask again to redo it."
+								other="# proposals couldn't be placed. Ask again to redo them."
 							/>
 						</p>
 					)}
@@ -548,13 +583,15 @@ type QuestionCardProps = {
 	part: ToolPart;
 	readOnly: boolean;
 	onAnswer: (toolCallId: string, answer: string) => void;
+	onApplyAll: () => { applied: number; stale: number };
 };
 
 /** The assistant asks before writing anything the document doesn't say: an info-soft card with its choices. */
-function QuestionCard({ part, readOnly, onAnswer }: QuestionCardProps) {
+function QuestionCard({ part, readOnly, onAnswer, onApplyAll }: QuestionCardProps) {
 	const id = useId();
 	const [other, setOther] = useState("");
-	const input = (part.input ?? {}) as { question?: unknown; choices?: unknown };
+	const input = (part.input ?? {}) as { question?: unknown; choices?: unknown; applyChanges?: unknown };
+	const applies = input.applyChanges === true;
 	const question = typeof input.question === "string" ? input.question : "";
 	const choices = Array.isArray(input.choices)
 		? input.choices.filter((choice): choice is string => typeof choice === "string")
@@ -574,8 +611,21 @@ function QuestionCard({ part, readOnly, onAnswer }: QuestionCardProps) {
 				<>
 					{choices.length > 0 && (
 						<div className="flex flex-wrap gap-1.5">
-							{choices.map((choice) => (
-								<Button key={choice} size="sm" variant="secondary" onClick={() => onAnswer(toolCallId, choice)}>
+							{choices.map((choice, index) => (
+								<Button
+									key={choice}
+									size="sm"
+									variant={applies && index === 0 ? "primary" : "secondary"}
+									onClick={() => {
+										if (applies && index === 0) {
+											const { applied, stale } = onApplyAll();
+											const count = plural(applied, { one: "# change", other: "# changes" });
+											onAnswer(toolCallId, t`${choice} — applied ${count}; ${stale} were out of date.`);
+											return;
+										}
+										onAnswer(toolCallId, choice);
+									}}
+								>
 									{choice}
 								</Button>
 							))}

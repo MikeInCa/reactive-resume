@@ -5,13 +5,19 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { i18n } from "@lingui/core";
 import { I18nProvider } from "@lingui/react";
 
-const mocks = vi.hoisted(() => ({ chat: vi.fn(), send: vi.fn(), attach: vi.fn(), publish: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+	chat: vi.fn(),
+	send: vi.fn(),
+	attach: vi.fn(),
+	publish: vi.fn(),
+	addToolOutput: vi.fn(),
+}));
 vi.mock("@tanstack/react-query", () => ({ useQueryClient: () => ({ invalidateQueries: vi.fn() }) }));
 vi.mock("@/features/resume/editor/store", () => ({
 	useEditorStore: (select: (state: unknown) => unknown) => select({ setAssistantProposals: mocks.publish }),
 }));
 vi.mock("@/libs/orpc/client", () => ({
-	client: { agent: { attachments: { create: mocks.attach } } },
+	client: { agent: { attachments: { create: mocks.attach }, messages: { setEditStatus: async () => ({}) } } },
 	orpc: { agent: { threads: { list: { key: () => ["threads"] } } } },
 }));
 vi.mock("@reactive-resume/ui/components/toast", () => ({ toast: { add: vi.fn() } }));
@@ -172,4 +178,84 @@ it("reopens native and custom web results with sources, clipping and failed or u
 	expect(screen.getByRole("link", { name: "https://careers.example/role" }).getAttribute("href")).toBe(
 		"https://careers.example/role",
 	);
+});
+
+it("renders propose_changes cards and applies every pending card from the apply-all question's first choice", async () => {
+	const accept = vi.fn();
+	const stateOf = vi.fn(() => "pending" as const);
+	const proposals = [
+		{
+			id: "c1",
+			kind: "patch",
+			target: { sectionId: "basics", field: "headline" },
+			location: "Basics · Headline",
+			before: "a",
+			after: "b",
+			why: "w",
+			status: "pending",
+			operations: [{ op: "replace", path: "/basics/headline", value: "b" }],
+			changes: [{ path: "/basics/headline", label: "Basics · Headline", before: "a", after: "b" }],
+		},
+	];
+	mocks.chat.mockReturnValue({
+		messages: [
+			{
+				id: "a1",
+				role: "assistant",
+				parts: [
+					{
+						type: "tool-propose_changes",
+						toolCallId: "t1",
+						state: "output-available",
+						input: {},
+						output: { title: "Tailor", proposals, skipped: [] },
+					},
+				],
+			},
+			{
+				id: "a2",
+				role: "assistant",
+				parts: [
+					{
+						type: "tool-ask_user_question",
+						toolCallId: "q1",
+						state: "input-available",
+						input: { question: "Apply all 1 changes?", choices: ["Apply all 1", "Let me pick"], applyChanges: true },
+					},
+				],
+			},
+		],
+		sendMessage: mocks.send,
+		status: "ready",
+		clearError: vi.fn(),
+		addToolOutput: mocks.addToolOutput,
+		regenerate: vi.fn(),
+		stop: vi.fn(),
+		error: undefined,
+	});
+	render(
+		<I18nProvider i18n={i18n}>
+			<Conversation
+				threadId="t"
+				initialMessages={[]}
+				activeRun={false}
+				document={{ ...document, accept, stateOf }}
+				readOnly={false}
+				providerLabel="Local"
+				prompt={null}
+				promptAttachments={[]}
+				initialContext={{ document: true, posting: true }}
+				onPromptSent={() => {}}
+				onSwitchModel={() => {}}
+			/>
+		</I18nProvider>,
+	);
+	expect(screen.getAllByText("Basics · Headline").length).toBeGreaterThanOrEqual(1);
+	fireEvent.click(screen.getByRole("button", { name: "Apply all 1" }));
+	await waitFor(() => expect(accept).toHaveBeenCalledWith([expect.objectContaining({ id: "c1" })]));
+	expect(mocks.addToolOutput).toHaveBeenCalledWith({
+		tool: "ask_user_question",
+		toolCallId: "q1",
+		output: "Apply all 1 — applied 1 change; 0 were out of date.",
+	});
 });
