@@ -1,5 +1,4 @@
 import type z from "zod";
-import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { pageSchema } from "@reactive-resume/schema/resume/data";
 import { FormControl, FormItem, FormLabel, FormMessage } from "@reactive-resume/ui/components/form";
@@ -7,7 +6,6 @@ import { InputGroup, InputGroupAddon, InputGroupText } from "@reactive-resume/ui
 import { Switch } from "@reactive-resume/ui/components/switch";
 import { SectionBase } from "../shared/section-base";
 import { NumberInput } from "@/components/input/number-input";
-import { Combobox } from "@/components/ui/combobox";
 import { useCurrentResume, useUpdateResumeData } from "@/features/resume/builder/draft";
 import { useSyncFormValues } from "@/hooks/use-sync-form-values";
 import { useAppForm } from "@/libs/tanstack-form";
@@ -73,37 +71,6 @@ function PageSectionForm() {
 				void form.handleSubmit();
 			}}
 		>
-			<form.Field name="format">
-				{(field) => (
-					<FormItem
-						className="col-span-full"
-						hasError={field.state.meta.isTouched && field.state.meta.errors.length > 0}
-					>
-						<FormLabel>
-							<Trans context="Page Format (A4, Letter, Free-form)">Format</Trans>
-						</FormLabel>
-						<FormControl
-							render={
-								<Combobox
-									options={[
-										{ value: "a4", label: t`A4` },
-										{ value: "letter", label: t`Letter` },
-										{ value: "free-form", label: t`Free-form` },
-									]}
-									value={field.state.value}
-									onValueChange={(value) => {
-										const format = value as FormValues["format"];
-										field.handleChange(format);
-										handleAutoSave();
-									}}
-								/>
-							}
-						/>
-						<FormMessage errors={field.state.meta.errors} />
-					</FormItem>
-				)}
-			</form.Field>
-
 			{pageNumberFields.map(({ name, label, min, max }) => (
 				<form.Field key={name} name={name}>
 					{(field) => (
