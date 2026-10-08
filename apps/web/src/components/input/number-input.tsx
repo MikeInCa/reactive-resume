@@ -16,6 +16,7 @@ export function NumberInput({ value, min, max, onValueChange, onBlur, ...props }
 	return (
 		<InputGroupInput
 			{...props}
+			data-slot="input-group-control"
 			type="number"
 			min={min}
 			max={max}
