@@ -3,14 +3,10 @@ import { t } from "@lingui/core/macro";
 import { Trans } from "@lingui/react/macro";
 import { pageSchema } from "@reactive-resume/schema/resume/data";
 import { FormControl, FormItem, FormLabel, FormMessage } from "@reactive-resume/ui/components/form";
-import {
-	InputGroup,
-	InputGroupAddon,
-	InputGroupInput,
-	InputGroupText,
-} from "@reactive-resume/ui/components/input-group";
+import { InputGroup, InputGroupAddon, InputGroupText } from "@reactive-resume/ui/components/input-group";
 import { Switch } from "@reactive-resume/ui/components/switch";
 import { SectionBase } from "../shared/section-base";
+import { NumberInput } from "@/components/input/number-input";
 import { Combobox } from "@/components/ui/combobox";
 import { useCurrentResume, useUpdateResumeData } from "@/features/resume/builder/draft";
 import { useSyncFormValues } from "@/hooks/use-sync-form-values";
@@ -30,8 +26,6 @@ type FormValues = z.infer<typeof formSchema>;
 
 const CLAMP_MIN = 0;
 const CLAMP_MAX = 100;
-
-const clamp = (value: number, min: number, max: number) => Math.min(Math.max(value, min), max);
 
 function PageSectionForm() {
 	const resume = useCurrentResume();
@@ -53,13 +47,8 @@ function PageSectionForm() {
 	});
 	useSyncFormValues(form, page);
 
-	const handleAutoSave = <K extends keyof FormValues>(name: K, value: FormValues[K]) => {
-		const next = { ...form.state.values, [name]: value };
-		// Keep last-saved numeric page fields when the form holds a transient empty/NaN value
-		for (const key of ["marginX", "marginY", "gapX", "gapY"] as const) {
-			if (!Number.isFinite(next[key])) next[key] = page?.[key] ?? 0;
-		}
-		persist(next);
+	const handleAutoSave = () => {
+		persist(form.state.values);
 	};
 
 	const pageNumberFields = [
@@ -105,7 +94,7 @@ function PageSectionForm() {
 									onValueChange={(value) => {
 										const format = value as FormValues["format"];
 										field.handleChange(format);
-										handleAutoSave("format", format);
+										handleAutoSave();
 									}}
 								/>
 							}
@@ -123,28 +112,16 @@ function PageSectionForm() {
 							<InputGroup>
 								<FormControl
 									render={
-										<InputGroupInput
+										<NumberInput
 											name={field.name}
-											value={Number.isFinite(field.state.value) ? field.state.value : ""}
+											value={field.state.value}
 											min={min}
-											{...(max !== undefined ? { max } : {})}
+											max={max}
 											step={1}
-											type="number"
 											onBlur={field.handleBlur}
-											onChange={(e) => {
-												const v = e.target.value;
-												if (v === "") {
-													// Allow clearing the controlled input without persisting invalid metadata
-													field.handleChange(Number.NaN);
-													return;
-												}
-
-												const raw = Number(v);
-												if (!Number.isFinite(raw)) return;
-
-												const num = max !== undefined ? clamp(raw, min ?? 0, max) : Math.max(raw, min ?? 0);
-												field.handleChange(num);
-												handleAutoSave(name, num);
+											onValueChange={(value) => {
+												field.handleChange(value);
+												handleAutoSave();
 											}}
 										/>
 									}
@@ -172,7 +149,7 @@ function PageSectionForm() {
 										checked={field.state.value}
 										onCheckedChange={(checked) => {
 											field.handleChange(checked);
-											handleAutoSave(name, checked);
+											handleAutoSave();
 										}}
 									/>
 								}

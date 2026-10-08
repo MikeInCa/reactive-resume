@@ -19,22 +19,17 @@ import {
 import { FormControl, FormItem, FormLabel, FormMessage } from "@reactive-resume/ui/components/form";
 import { Icon } from "@reactive-resume/ui/components/icon";
 import { Input } from "@reactive-resume/ui/components/input";
-import {
-	InputGroup,
-	InputGroupAddon,
-	InputGroupInput,
-	InputGroupText,
-} from "@reactive-resume/ui/components/input-group";
+import { InputGroup, InputGroupAddon, InputGroupText } from "@reactive-resume/ui/components/input-group";
 import { Slider } from "@reactive-resume/ui/components/slider";
 import { toast } from "@reactive-resume/ui/components/toast";
 import "react-easy-crop/react-easy-crop.css";
 import { ColorPicker } from "@/components/input/color-picker";
+import { NumberInput } from "@/components/input/number-input";
 import { useCurrentBuilderResumeSelector, useUpdateResumeData } from "@/features/resume/builder/draft";
 import { useClosingValue } from "@/hooks/use-closing-value";
 import { useConfirm } from "@/hooks/use-confirm";
 import { useSyncFormValues } from "@/hooks/use-sync-form-values";
 import { getReadableErrorMessage } from "@/libs/error-message";
-import { numberInputValue, readNumberInput } from "@/libs/number-input";
 import { orpc } from "@/libs/orpc/client";
 import { useAppForm } from "@/libs/tanstack-form";
 
@@ -187,18 +182,16 @@ function PictureGeometryFields({ form, onAutoSave }: PictureFieldProps) {
 						<InputGroup>
 							<FormControl
 								render={
-									<InputGroupInput
+									<NumberInput
 										name={field.name}
-										value={numberInputValue(field.state.value)}
-										type="number"
+										value={field.state.value}
 										min={32}
 										max={512}
 										step={1}
 										onBlur={field.handleBlur}
-										onChange={(e) => {
-											const value = readNumberInput(e.target.value, { min: 32, max: 512 });
+										onValueChange={(value) => {
 											field.handleChange(value);
-											if (Number.isFinite(value)) onAutoSave();
+											onAutoSave();
 										}}
 									/>
 								}
@@ -222,19 +215,17 @@ function PictureGeometryFields({ form, onAutoSave }: PictureFieldProps) {
 						<InputGroup>
 							<FormControl
 								render={
-									<InputGroupInput
+									<NumberInput
 										disabled
 										name={field.name}
-										value={numberInputValue(field.state.value)}
-										type="number"
+										value={field.state.value}
 										min={0}
 										max={360}
 										step={5}
 										onBlur={field.handleBlur}
-										onChange={(e) => {
-											const value = readNumberInput(e.target.value, { min: 0, max: 360 });
+										onValueChange={(value) => {
 											field.handleChange(value);
-											if (Number.isFinite(value)) onAutoSave();
+											onAutoSave();
 										}}
 									/>
 								}
@@ -257,24 +248,24 @@ function PictureGeometryFields({ form, onAutoSave }: PictureFieldProps) {
 							<Trans>Aspect Ratio</Trans>
 						</FormLabel>
 						<div className="flex items-center gap-x-2">
-							<FormControl
-								render={
-									<Input
-										name={field.name}
-										value={numberInputValue(field.state.value)}
-										type="number"
-										min={0.5}
-										max={2.5}
-										step={0.1}
-										onBlur={field.handleBlur}
-										onChange={(e) => {
-											const value = readNumberInput(e.target.value, { min: 0.5, max: 2.5 });
-											field.handleChange(value);
-											if (Number.isFinite(value)) onAutoSave();
-										}}
-									/>
-								}
-							/>
+							<InputGroup>
+								<FormControl
+									render={
+										<NumberInput
+											name={field.name}
+											value={field.state.value}
+											min={0.5}
+											max={2.5}
+											step={0.1}
+											onBlur={field.handleBlur}
+											onValueChange={(value) => {
+												field.handleChange(value);
+												onAutoSave();
+											}}
+										/>
+									}
+								/>
+							</InputGroup>
 
 							<ButtonGroup className="shrink-0">
 								<Button
@@ -335,18 +326,16 @@ function PictureGeometryFields({ form, onAutoSave }: PictureFieldProps) {
 							<InputGroup>
 								<FormControl
 									render={
-										<InputGroupInput
+										<NumberInput
 											name={field.name}
-											value={numberInputValue(field.state.value)}
-											type="number"
+											value={field.state.value}
 											min={0}
 											max={100}
 											step={1}
 											onBlur={field.handleBlur}
-											onChange={(e) => {
-												const value = readNumberInput(e.target.value, { min: 0, max: 100 });
+											onValueChange={(value) => {
 												field.handleChange(value);
-												if (Number.isFinite(value)) onAutoSave();
+												onAutoSave();
 											}}
 										/>
 									}
@@ -659,17 +648,15 @@ function ColorWidthFields(props: ColorWidthFieldsProps) {
 						<InputGroup>
 							<FormControl
 								render={
-									<InputGroupInput
+									<NumberInput
 										name={field.name}
-										value={numberInputValue(field.state.value)}
-										type="number"
+										value={field.state.value}
 										min={0}
 										step={step}
 										onBlur={field.handleBlur}
-										onChange={(e) => {
-											const value = readNumberInput(e.target.value, { min: 0 });
+										onValueChange={(value) => {
 											field.handleChange(value);
-											if (Number.isFinite(value)) onAutoSave();
+											onAutoSave();
 										}}
 									/>
 								}

@@ -4,20 +4,15 @@ import { Trans } from "@lingui/react/macro";
 import { useStore } from "@tanstack/react-form";
 import { typographySchema } from "@reactive-resume/schema/resume/data";
 import { FormControl, FormDescription, FormItem, FormLabel, FormMessage } from "@reactive-resume/ui/components/form";
-import {
-	InputGroup,
-	InputGroupAddon,
-	InputGroupInput,
-	InputGroupText,
-} from "@reactive-resume/ui/components/input-group";
+import { InputGroup, InputGroupAddon, InputGroupText } from "@reactive-resume/ui/components/input-group";
 import { Separator } from "@reactive-resume/ui/components/separator";
 import { Switch } from "@reactive-resume/ui/components/switch";
 import { SectionBase } from "../shared/section-base";
+import { NumberInput } from "@/components/input/number-input";
 import { FontFamilyCombobox, FontWeightCombobox } from "@/components/typography/combobox";
 import { getNextWeights } from "@/components/typography/get-next-weights";
 import { useCurrentResume, useUpdateResumeData } from "@/features/resume/builder/draft";
 import { useSyncFormValues } from "@/hooks/use-sync-form-values";
-import { numberInputValue, readNumberInput } from "@/libs/number-input";
 import { useAppForm } from "@/libs/tanstack-form";
 
 export function TypographySectionBuilder() {
@@ -184,18 +179,16 @@ function TypographyGroupFields({ form, prefix, handleAutoSave }: TypographyGroup
 						<InputGroup>
 							<FormControl
 								render={
-									<InputGroupInput
+									<NumberInput
 										name={field.name}
-										value={numberInputValue(field.state.value)}
+										value={field.state.value}
 										min={6}
 										max={24}
 										step={0.1}
-										type="number"
 										onBlur={field.handleBlur}
-										onChange={(e) => {
-											const value = readNumberInput(e.target.value, { min: 6, max: 24 });
+										onValueChange={(value) => {
 											field.handleChange(value);
-											if (Number.isFinite(value)) handleAutoSave();
+											handleAutoSave();
 										}}
 									/>
 								}
@@ -217,18 +210,16 @@ function TypographyGroupFields({ form, prefix, handleAutoSave }: TypographyGroup
 						<InputGroup>
 							<FormControl
 								render={
-									<InputGroupInput
+									<NumberInput
 										name={field.name}
-										value={numberInputValue(field.state.value)}
+										value={field.state.value}
 										min={0.5}
 										max={4}
 										step={0.05}
-										type="number"
 										onBlur={field.handleBlur}
-										onChange={(e) => {
-											const value = readNumberInput(e.target.value, { min: 0.5, max: 4 });
+										onValueChange={(value) => {
 											field.handleChange(value);
-											if (Number.isFinite(value)) handleAutoSave();
+											handleAutoSave();
 										}}
 									/>
 								}
